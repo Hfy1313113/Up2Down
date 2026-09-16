@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""画马赛跑 联机服务器 —— 纯标准库：HTTP 静态文件 + WebSocket 房间中继（RFC6455）"""
+"""奔跑即故障 联机服务器 —— 纯标准库：HTTP 静态文件 + WebSocket 房间中继（RFC6455）"""
 import base64
 import hashlib
 import json
@@ -298,7 +298,7 @@ class Handler(SimpleHTTPRequestHandler):
 
 def main():
     server = ThreadingHTTPServer((HOST, PORT), Handler)
-    print(f"画马赛跑服务器已启动:  http://localhost:{PORT}")
+    print(f"奔跑即故障服务器已启动:  http://localhost:{PORT}")
     print(f"局域网内他人访问:      http://<你的局域网IP>:{PORT}")
     try:
         server.serve_forever()

@@ -11,7 +11,7 @@ bash scripts/start.sh    # Linux/macOS
 启动成功输出：
 
 ```
-画马赛跑服务器已启动:  http://localhost:8000
+奔跑即故障服务器已启动:  http://localhost:8000
 局域网内他人访问:      http://<你的局域网IP>:8000
 ```
 
