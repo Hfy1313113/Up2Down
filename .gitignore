@@ -1,0 +1,36 @@
+# ===== 根级 .gitignore =====
+
+# --- 第三方二进制（体积大，按 README 指引从 release 下载） ---
+cloudflared.exe
+
+# --- 环境变量文件：只提交 .env.example，绝不提交真实 .env ---
+.env
+*.env.local
+
+# --- 测试截图等产物 ---
+shots/
+shot_*.png
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# --- 日志与临时文件 ---
+*.log
+*.tmp
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- 编辑器 / IDE ---
+.vscode/
+.idea/
+*.swp
+
+# --- 若未来引入前端工具链 ---
+node_modules/
+dist/
+build/
