@@ -1,4 +1,4 @@
-// birthScene.ts —— three.js 诞生仪式舞台：旋转放大登场、慢速自转、Pointer 拖拽 360° 观察。
+// birthScene.ts —— three.js 诞生仪式舞台：旋转放大登场、慢速自转、全自由 360° 球面轨道拖拽观察与滚轮缩放。
 import * as THREE from "three";
 import { computePose } from "../game/gait";
 import type { HorseModel } from "../game/types";
@@ -16,9 +16,13 @@ export class BirthScene {
   private rig: HorseRig;
   private disposables: { dispose(): void }[] = [];
   private startTime = performance.now();
+  private lastInteraction = performance.now();
   private dragging = false;
   private lx = 0; private ly = 0;
-  private rotY = 0; private rotX = 0.15;
+  // 球面坐标系：theta 为水平方位角（全周 360°），phi 为垂直极角（顶部到俯视再到仰视），radius 为距离
+  private theta = 0;
+  private phi = Math.PI / 2 - 0.22;
+  private radius = CAM_RADIUS;
   private scale = WORLD_SCALE * 2.2;
   private disposed = false;
 
@@ -77,44 +81,119 @@ export class BirthScene {
     this.camera.updateProjectionMatrix();
   }
 
-  // Pointer 拖拽 360°（自实现轨道：水平转 Y，垂直 ±30°）
+  // Pointer 拖拽与滚轮全自由 360° 球面观察（支持触控双指缩放）
   attachDrag(el: HTMLElement): void {
-    const down = (e: PointerEvent) => { this.dragging = true; this.lx = e.clientX; this.ly = e.clientY; };
-    const move = (e: PointerEvent) => {
-      if (!this.dragging) return;
-      this.rotY += (e.clientX - this.lx) * 0.01;
-      this.rotX = Math.max(-0.5, Math.min(0.5, this.rotX + (e.clientY - this.ly) * 0.006));
-      this.lx = e.clientX; this.ly = e.clientY;
+    const pointers = new Map<number, { x: number; y: number }>();
+    let initialPinchDist = 0;
+    let initialRadius = this.radius;
+
+    const down = (e: PointerEvent) => {
+      el.setPointerCapture?.(e.pointerId);
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      this.dragging = true;
+      this.lastInteraction = performance.now();
+      this.lx = e.clientX;
+      this.ly = e.clientY;
+      if (pointers.size === 2) {
+        const [p1, p2] = Array.from(pointers.values());
+        initialPinchDist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+        initialRadius = this.radius;
+      }
     };
-    const up = () => { this.dragging = false; };
+
+    const move = (e: PointerEvent) => {
+      if (!pointers.has(e.pointerId)) return;
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      this.lastInteraction = performance.now();
+
+      if (pointers.size >= 2) {
+        const [p1, p2] = Array.from(pointers.values());
+        const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+        if (initialPinchDist > 0) {
+          const factor = initialPinchDist / Math.max(dist, 1);
+          this.radius = Math.max(3.2, Math.min(10.0, initialRadius * factor));
+        }
+      } else if (pointers.size === 1) {
+        const dx = e.clientX - this.lx;
+        const dy = e.clientY - this.ly;
+        // 水平方向（方位角）：自由 360° 连续无界旋转
+        this.theta -= dx * 0.008;
+        // 垂直方向（极角）：允许从俯视鸟瞰（近天顶 0.05 弧度）到仰视（130° 仰角），全方位多轴自由观察
+        this.phi = Math.max(0.05, Math.min(Math.PI * 0.72, this.phi - dy * 0.008));
+        this.lx = e.clientX;
+        this.ly = e.clientY;
+      }
+    };
+
+    const up = (e: PointerEvent) => {
+      pointers.delete(e.pointerId);
+      if (pointers.size === 0) {
+        this.dragging = false;
+      } else if (pointers.size === 1) {
+        const p = Array.from(pointers.values())[0];
+        this.lx = p.x;
+        this.ly = p.y;
+      }
+    };
+
+    const wheel = (e: WheelEvent) => {
+      e.preventDefault();
+      this.lastInteraction = performance.now();
+      this.radius = Math.max(3.2, Math.min(10.0, this.radius + e.deltaY * 0.006));
+    };
+
     el.addEventListener("pointerdown", down);
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
-    this.disposables.push({ dispose: () => {
-      el.removeEventListener("pointerdown", down);
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-    } });
+    window.addEventListener("pointercancel", up);
+    el.addEventListener("wheel", wheel, { passive: false });
+
+    this.disposables.push({
+      dispose: () => {
+        el.removeEventListener("pointerdown", down);
+        window.removeEventListener("pointermove", move);
+        window.removeEventListener("pointerup", up);
+        window.removeEventListener("pointercancel", up);
+        el.removeEventListener("wheel", wheel);
+      },
+    });
   }
 
   private loop = (): void => {
     if (this.disposed) return;
     requestAnimationFrame(this.loop);
     const t = performance.now() - this.startTime;
-    // 登场：4s 内 360°→0 旋转 + 0.2→1 缩放（easeOutCubic）
+
+    // 登场动画：4s 内 360° 旋转放大登场
     const k = Math.min(1, t / INTRO_MS);
     const ease = 1 - Math.pow(1 - k, 3);
-    const spin = (1 - ease) * Math.PI * 2;
-    if (!this.dragging && k >= 1) this.rotY += 0.003;   // 登场后慢速自转
-    this.rig.group.rotation.y = this.rotY + spin;
+    const introSpin = (1 - ease) * Math.PI * 2;
+
     this.rig.group.scale.setScalar(this.scale * (0.2 + 0.8 * ease));
-    // 相机轨道
+
+    if (k < 1) {
+      this.rig.group.rotation.y = introSpin;
+    } else {
+      this.rig.group.rotation.y = 0;
+      // 登场完毕且用户静置超过 2.5 秒时，缓慢水平自动环视展台
+      if (!this.dragging && performance.now() - this.lastInteraction > 2500) {
+        this.theta += 0.004;
+      }
+    }
+
+    // 球面全自由坐标转换 (目标中心为 CAM_TARGET_Y)
+    const sinPhi = Math.sin(this.phi);
+    const cosPhi = Math.cos(this.phi);
+    const sinTheta = Math.sin(this.theta);
+    const cosTheta = Math.cos(this.theta);
+
     this.camera.position.set(
-      Math.sin(this.rotY + spin) * CAM_RADIUS,
-      CAM_TARGET_Y + 1.2 + this.rotX * 6,
-      Math.cos(this.rotY + spin) * CAM_RADIUS,
+      sinPhi * sinTheta * this.radius,
+      CAM_TARGET_Y + cosPhi * this.radius,
+      sinPhi * cosTheta * this.radius,
     );
     this.camera.lookAt(0, CAM_TARGET_Y, 0);
+
     this.renderer.render(this.scene, this.camera);
   };
 

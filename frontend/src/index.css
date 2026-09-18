@@ -145,7 +145,11 @@ button.primary:hover:not(:disabled) { background: #4ca35e; }
 .race-banner li:last-child { border-bottom: none; }
 
 /* ---- 诞生仪式（3D） ---- */
-.birth-stage3d { position: relative; min-height: 480px; border-radius: 12px; overflow: hidden; cursor: grab; background: linear-gradient(#bfe6ff, #eaf6ff); }
+.birth-stage3d {
+  position: relative; min-height: 480px; border-radius: 12px; overflow: hidden;
+  cursor: grab; background: linear-gradient(#bfe6ff, #eaf6ff);
+  touch-action: none; user-select: none;
+}
 .birth-stage3d:active { cursor: grabbing; }
 .birth-canvas3d { width: 100%; height: 480px; display: block; }
 .birth-stage3d .birth-confetti { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
