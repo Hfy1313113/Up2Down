@@ -1,13 +1,13 @@
-/* index.ts —— up2down 信令 Worker：唯一的房间/中继服务端。
-   每个房间一个 Durable Object（Room），玩家各挂一条 WebSocket，
-   消息为 JSON、字段 t。Worker 只校验/转发，不解释 strokes 内容。 */
+/* index.ts —— up2down 信令 Worker：控制面服务端（房间成员/信令/计时）。
+   每个房间一个 Durable Object（Room），玩家各挂一条 WebSocket，消息为 JSON、字段 t。
+   画作等游戏数据走 WebRTC P2P 直连，Worker 只在无法直连时做 relay 兜底；
+   Worker 自身不保存 strokes，出口流量保持 KB 级。 */
 
 interface Player {
   pid: string;
   name: string;
   ws: WebSocket;
   done: boolean;
-  strokes: unknown;
 }
 
 interface RoomState {
@@ -65,18 +65,9 @@ export class Room {
     this.state.storage.deleteAlarm();
   }
 
-  // 构建 race 消息：全员上榜，未提交者 strokes=null
-  private buildRaceMsg() {
-    const rs = this.roomState;
-    return {
-      t: "race",
-      horses: [...rs.players.values()].map(p => ({
-        id: p.pid, name: p.name,
-        strokes: p.done ? p.strokes : null,
-      })),
-    };
-  }
+  // 超时兜底事件不需要马匹载荷，由房主端本地组装
 
+  // 超时兜底：服务端不持有画作，只广播超时事件，由房主端据此用本地收集到的画作开赛
   async alarm(): Promise<void> {
     if (this.raceDeadline == null || this.raceStarted) return;
     if (Date.now() < this.raceDeadline) {   // 防御：提前唤醒则重新定
@@ -85,7 +76,7 @@ export class Room {
     }
     this.raceStarted = true;
     this.cancelRaceTimer();
-    broadcast(this.roomState, this.buildRaceMsg());
+    broadcast(this.roomState, { t: "race_timeout" });
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -138,16 +129,31 @@ export class Room {
           const p = pid && rs.players.get(pid);
           if (!p) return;
           p.done = true;
-          p.strokes = msg.strokes ?? null;
           broadcast(rs, { t: "player_done", id: pid, name: p.name });
           broadcast(rs, roomStateMsg(rs, this.code));
           break;
         }
-        // 纯转发：signal / relay → 目标玩家；relay_all → 广播
+        case "ping": {
+          send(ws, { t: "pong" });
+          break;
+        }
+        // 房主通知服务端绘制阶段开始（只计时，不广播）
+        case "phase_start": {
+          this.beginDrawPhase(Number(msg.timeoutMs) || DRAW_TIMEOUT_MS);
+          break;
+        }
+        // 房主通知服务端本轮已开赛（取消超时兜底，不广播）
+        case "round_over": {
+          this.raceStarted = true;
+          this.cancelRaceTimer();
+          break;
+        }
+        // 纯转发：signal / relay → 目标玩家（不存在则回 error）；relay_all → 广播
         case "signal":
         case "relay": {
           const to = rs.players.get(String(msg.to));
           if (to) send(to.ws, { ...msg, from: pid });
+          else send(ws, { t: "error", msg: `目标玩家 ${msg.to} 不存在`, for: msg.t, to: msg.to });
           break;
         }
         case "relay_all": {
@@ -159,17 +165,7 @@ export class Room {
         default: {
           if (msg.t === "start") this.beginDrawPhase(DRAW_TIMEOUT_MS);
           if (msg.t === "again") { this.raceStarted = false; this.cancelRaceTimer(); }
-          if (msg.t === "race") {
-            // 房主已开赛：标记并取消服务端超时
-            this.raceStarted = true;
-            this.cancelRaceTimer();
-            if (Array.isArray(msg.horses)) {
-              msg.horses = msg.horses.map((h: any) => {
-                const p = rs.players.get(String(h.id));
-                return { ...h, strokes: p?.done ? p.strokes : (h.strokes ?? null) };
-              });
-            }
-          }
+          if (msg.t === "race") { this.raceStarted = true; this.cancelRaceTimer(); }
           broadcast(rs, { ...msg, from: pid }, ws);
         }
       }

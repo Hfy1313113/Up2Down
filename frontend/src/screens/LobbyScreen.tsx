@@ -42,6 +42,10 @@ export function LobbyScreen() {
             ))}
           </ul>
           <p className="hint">{iAmHost ? "你是房主，就绪后即可开始比赛" : "等待房主开始比赛…"}</p>
+          <p className="links">
+            联机通道：P2P × {g.links.p2p}
+            {g.links.relay > 0 ? ` · 兜底中转 × ${g.links.relay}` : ""}
+          </p>
           {iAmHost && <button onClick={startGame}>开始比赛</button>}
         </div>
       )}

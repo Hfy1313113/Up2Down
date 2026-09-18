@@ -1,5 +1,5 @@
 // 手动验证脚本：模拟 2 个客户端走完 join → room_state → relay_all → done → race → 房主断线移交
-const URL = "ws://localhost:8787/rooms/test42";
+const URL = `ws://localhost:8787/rooms/test42-${Date.now() % 100000}`;
 const log = [];
 const ok = (cond, name) => { log.push(`${cond ? "PASS" : "FAIL"} ${name}`); if (!cond) process.exitCode = 1; };
 
@@ -16,9 +16,12 @@ function client(name) {
 }
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const last = (c, t) => [...c.msgs].reverse().find(m => m.t === t);
+// 依次加入，保证 pid 顺序确定（冷启动 Durable Object 下并发加入可能乱序）
+const joined = async (c) => { for (let i = 0; i < 100 && !c.id; i++) await sleep(50); return c; };
 
-const a = client("甲"), b = client("乙");
-await sleep(500);
+const a = await joined(client("甲"));
+const b = await joined(client("乙"));
+await sleep(200);
 
 ok(a.id === "p1" && b.id === "p2", `joined 分配 pid (${a.id},${b.id})`);
 ok(last(a, "room_state")?.host === "p1" && last(a, "room_state")?.players.length === 2, "room_state: 2 玩家, host=p1");

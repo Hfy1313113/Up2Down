@@ -14,6 +14,10 @@ export function WaitingScreen() {
         ))}
       </ul>
       <p className="hint">全员提交或计时结束后自动开赛…</p>
+      <p className="links">
+        联机通道：P2P × {g.links.p2p}
+        {g.links.relay > 0 ? ` · 兜底中转 × ${g.links.relay}` : ""}
+      </p>
     </div>
   );
 }
