@@ -18,7 +18,7 @@ src/
 ├── three/
 │   ├── horseMesh.ts   识别模型 → THREE.Group（躯干、颈头、四条连杆腿、尾巴）
 │   ├── raceScene.ts   赛道场景、双视角相机、云与终点门
-│   └── birthScene.ts  诞生仪式舞台（旋转放大登场 + 拖拽环视）
+│   └── birthScene.ts  检阅舞台（落地冲击、失衡踉跄反馈、平衡恢复庆祝、全自由 360° 环视）
 ├── screens/        LobbyScreen / DrawScreen / useDrawCanvas / BirthScreen / WaitingScreen / RaceScreen
 ├── state/game.ts   阶段机、房主协调、画作汇总
 ├── demo/demo.tsx   仅开发态：?demo=birth / ?demo=race 直接用合成模型渲染

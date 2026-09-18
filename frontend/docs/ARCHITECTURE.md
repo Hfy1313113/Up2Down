@@ -39,8 +39,8 @@ lobby ──房主 startGame()──► draw ──三部位画完 prepareBirth(
   （`hind: -1 / fore: +1`），躯干颠簸按 `pose.bob × group.scale.y` 换算到世界尺度。
 - `raceScene.RaceScene`：地面/跑道/栅栏/终点门/云；相机跟随领头马（第三人称）或绑在本马头部
   （第一人称，按 V 切换，`render(state, view, dt)`）。马匹位置直接取 `raceSim` 的 `x` 与相位。
-- `birthScene.BirthScene`：展台 + 相机轨道 + 登场动画（4s 内 360° 旋转与缩放），按实际包围盒
-  把马归一到 `STAGE_HORSE_HEIGHT` 后取景；`attachDrag` 提供指针拖拽环视。
+- `birthScene.BirthScene`：展台 + 相机轨道 + 落地冲击与踉跄失衡物理反馈、平衡恢复后庆祝爆发、按实际包围盒
+  把马归一到合适尺度后取景；`attachDrag` 提供指针拖拽全自由 360° 球面轨道环视与缩放。
 
 React 集成注意事项：两处屏幕都用 `useEffect` 挂 rAF 循环，清理时必须置 `cancelled` 标志、
 清掉未触发的 `setTimeout` 并 `scene.dispose()`。开发态 `StrictMode` 会双挂载，若只取消 rAF
