@@ -2,19 +2,11 @@
 
 # 🐎 奔跑即故障 · Up2Down
 
-### 牛来马翻，边画边瘫！
-
-<sub><del style="color: gray; opacity: 0.65;">不能只让作者一个人吃上这种细糠😭</del></sub>
-
-<br/>
+### 牛来马翻，边画边瘫！<br/><sub><del style="color: gray; opacity: 0.65; font-weight: normal;">不能只让作者一个人吃上这种细糠😭</del></sub>
 
 分部位接力绘画 · 3D 双关节物理步态 · 实时 WebRTC 直连 · 最多 4 人同屏竞速
 
-<br/>
-
 [![在线游玩](https://img.shields.io/badge/🎮_立即在线开玩-up2down.arr2018.dpdns.org-ff6b35?style=for-the-badge&logo=google-chrome&logoColor=white)](https://up2down.arr2018.dpdns.org)
-
-<br/>
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg?style=flat-square)](LICENSE)
 [![Players](https://img.shields.io/badge/玩家人数-1~4%20人-4caf50.svg?style=flat-square)](#-游戏特色)
@@ -23,8 +15,6 @@
 [![Three.js](https://img.shields.io/badge/Three.js-r186-black.svg?style=flat-square&logo=three.js&logoColor=white)](https://threejs.org)
 [![WebRTC](https://img.shields.io/badge/WebRTC-P2P%20Mesh-333333.svg?style=flat-square&logo=webrtc&logoColor=white)](docs/ARCHITECTURE.md)
 [![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Worker%20+%20DO-F38020.svg?style=flat-square&logo=cloudflare&logoColor=white)](signaling/)
-
-<br/>
 
 `#网页联机游戏` &nbsp;•&nbsp; `#分部位绘画` &nbsp;•&nbsp; `#物理步态模拟` &nbsp;•&nbsp; `#WebRTC点对点` &nbsp;•&nbsp; `#零安装即开即玩`
 
