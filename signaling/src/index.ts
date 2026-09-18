@@ -115,8 +115,14 @@ export class Room {
           broadcast(rs, { ...msg, from: pid }, ws);
           break;
         }
-        // 房主协调消息（start/draw_phase/race/again 等）原样广播
+        // 房主协调消息原样广播；race 由服务端补全各玩家已存的 strokes（房主只知自己的）
         default: {
+          if (msg.t === "race" && Array.isArray(msg.horses)) {
+            msg.horses = msg.horses.map((h: any) => {
+              const p = rs.players.get(String(h.id));
+              return { ...h, strokes: p?.done ? p.strokes : (h.strokes ?? null) };
+            });
+          }
           broadcast(rs, { ...msg, from: pid }, ws);
         }
       }
