@@ -1,56 +1,64 @@
 # 奔跑即故障 · Up2Down
 
 最多 4 人联机的绘画赛跑网页游戏：**分部位**手绘你的小马（腿部 / 头部 / 屁股，躯干自动生成，
-每个部位 50 秒），画完后有「小马诞生仪式」（3D 旋转放大登场 + 彩带 + 音效 + 360° 拖拽观察）；
+每个部位 50 秒），画完后有「小马诞生仪式」（3D 旋转放大登场 + 彩带 + 音效 + 拖拽 360° 观察）；
 马匹被识别为「髋关节 + 膝关节」双关节连杆，全员就绪后开跑，**腿部长度与大腿/小腿比例决定速度**，
 最快冲线者获胜。比赛中可随时切换 **第三人称旁观视角** 与 **第一人称马儿视角**（按 V）。
+
+## 技术形态
+
+- **前端**：React + TypeScript + Vite，three.js 渲染 3D 赛跑与诞生仪式，纯静态产物可挂 Cloudflare Pages。
+- **联机**：WebRTC DataChannel 网状直连（≤4 人）。画作与开赛载荷点对点传输，
+  **不经过任何服务器**；与某个玩家穿不透 NAT 时，该条链路自动回落控制面中转（消息仅 KB 级）。
+- **控制面**：Cloudflare Worker + Durable Objects，只负责房间成员、信令交换、保活与绘制超时兜底。
+- **参与者零安装**：玩家只需要浏览器。
 
 ## 目录结构
 
 ```
-├── backend/        # Python 纯标准库服务器（HTTP 静态 + WebSocket 房间中继）
-│   ├── docs/       # 后端文档（架构 / 快速开始 / 模块说明）
-│   ├── scripts/    # 防火墙放行、内网隧道等运维脚本
-│   ├── server.py
-│   └── test_e2e.py
-├── frontend/       # 纯静态前端（原生 JS + Canvas 2D + CSS 3D，无构建工具）
-│   ├── docs/       # 前端文档（架构 / 快速开始 / 玩法与算法）
-│   ├── scripts/    # 无头浏览器截图验证脚本
-│   ├── js/         # net / draw / recognize / horse / race / birth / main
-│   ├── index.html  # 大厅 / 分部位绘制 / 诞生仪式 / 赛跑 单页
-│   ├── harness.html     # 算法+双视角渲染验证页
-│   └── birth_test.html  # 诞生仪式定格帧验证页
-├── docs/           # 项目级文档（API 协议 / 总体架构 / 快速开始）
-├── scripts/        # 一键启动脚本
-├── shots/          # 本地截图产物（gitignored）
-├── cloudflared.exe # 第三方隧道工具（gitignored，按下文指引下载）
-└── README.md
+├── frontend/          # React + TS + Vite 单页应用
+│   ├── src/
+│   │   ├── game/      # 纯算法：分部位识别 / 速度公式 / 步态 / 确定性赛跑模拟
+│   │   ├── net/       # transport：Worker 控制面 + WebRTC 数据面 + 兜底与去重
+│   │   ├── three/     # three.js 场景：马匹网格与连杆、赛跑场景、诞生仪式舞台
+│   │   ├── screens/   # 大厅 / 绘制 / 诞生 / 等待 / 赛跑
+│   │   ├── state/     # 阶段机与房主协调
+│   │   └── demo/      # 仅开发态：?demo=birth / ?demo=race 目视验证入口
+│   ├── tests/         # vitest 单测（识别/速度/步态/赛跑积分）
+│   ├── scripts/       # 截图验证、三端联机 e2e
+│   └── docs/          # 前端模块文档
+├── signaling/         # Cloudflare Worker（唯一服务端）
+│   ├── src/index.ts   # Durable Object 房间 + 信令/兜底转发 + 超时兜底
+│   ├── scripts/       # 协议用例（verify / signal / e2e / timeout）
+│   └── docs/          # 控制面文档
+└── docs/              # 项目级文档（架构 / 协议 / 快速开始）
 ```
 
 ## 快速开始
 
 ```bash
-scripts\start.bat           # Windows
-# 或
-bash scripts/start.sh       # Linux/macOS
+# 1) 控制面（本地 Durable Object）
+cd signaling && npm install && npx wrangler dev          # ws://localhost:8787
+
+# 2) 前端
+cd frontend && npm install && npm run dev                # http://localhost:5173
 ```
 
-浏览器打开 `http://localhost:8000`。详细说明见 [docs/QUICK_START.md](docs/QUICK_START.md)。
+浏览器打开 `http://localhost:5173`，**开多个标签页/隐身窗口输入同一房间号即可单机对局**。
+详细说明见 [docs/QUICK_START.md](docs/QUICK_START.md)。
 
-## 联机部署（局域网 / 异地）
+## 部署
 
-1. **局域网**：以管理员身份运行一次 `backend\scripts\add_firewall_rule.bat` 放行 8000 端口，
-   好友访问 `http://<你的局域网IP>:8000`。
-2. **异地公网**：从 [cloudflared releases](https://github.com/cloudflare/cloudflared/releases)
-   下载 `cloudflared-windows-amd64.exe` 放到仓库根目录，运行 `backend\scripts\run_tunnel.bat`，
-   把输出的 `https://xxx.trycloudflare.com` 链接发给好友即可（无需注册）。
+- 前端 → Cloudflare Pages：构建 `frontend`（`npm run build`），产物目录 `dist`，
+  环境变量 `VITE_SIGNAL_URL=wss://<你的 Worker 域名>`。
+- 控制面 → Cloudflare Workers：`cd signaling && npx wrangler deploy`。
 
 ## 文档导航
 
 | 文档 | 内容 |
 |---|---|
-| [docs/API.md](docs/API.md) | WebSocket 消息协议（join/start/done/again） |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 系统总体架构与关键设计决策 |
-| [docs/QUICK_START.md](docs/QUICK_START.md) | 运行、测试、部署指引 |
-| [backend/docs/](backend/docs/) | 服务器实现细节 |
+| [docs/QUICK_START.md](docs/QUICK_START.md) | 本地运行、测试、部署指引 |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 总体架构、联机模型与关键设计决策 |
+| [docs/API.md](docs/API.md) | 控制面协议 + P2P 数据面消息 |
 | [frontend/docs/](frontend/docs/) | 前端模块、玩法与识别/速度算法 |
+| [signaling/docs/](signaling/docs/) | Worker 房间模型与协议用例 |

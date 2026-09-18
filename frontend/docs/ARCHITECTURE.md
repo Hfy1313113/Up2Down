@@ -1,0 +1,54 @@
+# 前端架构
+
+## 阶段机
+
+`src/state/game.ts` 用轻量 external store + `useSyncExternalStore` 维护单一状态：
+
+```
+lobby ──房主 startGame()──► draw ──三部位画完 prepareBirth()──► birth
+  ▲                                                            │ sendDone()
+  │ playAgain() / resetToLobby()                               ▼
+  └──────────────── race ◄── enterRace(race 消息) ──────── waiting
+```
+
+- 房主（`host === transport.id`）负责：广播 `draw_phase`、判定全员提交、汇总画作并广播 `race`。
+- `room_state` 变化时若处于绘制/等待阶段，房主会重新判定是否可以开赛（用于迟到提交与超时）。
+- 服务端 `race_timeout` 到达时，当前房主用本地 `strokeArchive` 组装 `race` 广播；
+  非房主只等待 `race`。
+
+## 传输层（`src/net/transport.ts`）
+
+一条控制面 + 一条数据面，对上层暴露四个方法：`connect` / `send` / `notify` / `on`。
+
+- `send(msg)`：广播游戏消息。已建 DataChannel 的 peer 走 P2P；未建的走控制面 `relay` 定向转发；
+  还不知道有哪些 peer 时走 `relay_all`。
+- `notify(msg)`：只发控制面（服务端计时通知等）。
+- 每条消息带 `_id`，接收端维护最近 512 条 id 的去重窗口，杜绝双通道重复投递。
+- **建连**：`room_state` 驱动。每对 peer 由 id 较小者发起 offer 与 DataChannel，
+  天生无 glare；ICE 候选先缓存后补挂。
+- **降级**：连接失败（`failed` / `closed`）即标记该 peer 走兜底并定时重试；界面通过
+  `onLinkState` 显示「P2P × n · 兜底中转 × m」。
+- **保活与重连**：每 25s 发 `ping`；控制面断开且仍有 P2P 连接时不断线，后台重连并广播
+  `_rejoined` 更新自身 id；完全失去连接才回大厅。
+
+## 渲染层（`src/three/`）
+
+- `horseMesh.buildHorse(model, color)`：把识别模型变成 `THREE.Group`。
+  躯干为胶囊，颈/头/耳/眼/尾为基本几何；四条腿是 `hipGroup → 大腿 → kneeGroup → 小腿 + 蹄`
+  的两级连杆，`setPose(pose)` 每帧写入 `rotation.z`，与 `gait.legPoints` 的正解符号一致
+  （`hind: -1 / fore: +1`），躯干颠簸按 `pose.bob × group.scale.y` 换算到世界尺度。
+- `raceScene.RaceScene`：地面/跑道/栅栏/终点门/云；相机跟随领头马（第三人称）或绑在本马头部
+  （第一人称，按 V 切换，`render(state, view, dt)`）。马匹位置直接取 `raceSim` 的 `x` 与相位。
+- `birthScene.BirthScene`：展台 + 相机轨道 + 登场动画（4s 内 360° 旋转与缩放），按实际包围盒
+  把马归一到 `STAGE_HORSE_HEIGHT` 后取景；`attachDrag` 提供指针拖拽环视。
+
+React 集成注意事项：两处屏幕都用 `useEffect` 挂 rAF 循环，清理时必须置 `cancelled` 标志、
+清掉未触发的 `setTimeout` 并 `scene.dispose()`。开发态 `StrictMode` 会双挂载，若只取消 rAF
+而漏掉定时器，被销毁的 renderer 会继续绘制并污染画面。
+
+## 验证入口
+
+- `?demo=birth` / `?demo=race`（仅 `import.meta.env.DEV`）：用 `synth.ts` 合成画作直接渲染，
+  供 `scripts/screenshot.mjs` 截图目视验证，不需要多人流程。
+- `scripts/e2e-p2p.mjs`：起 `wrangler dev` + `vite`，三个浏览器上下文真实绘制三部位，
+  断言 DataChannel 全部直连、三端名次一致。
