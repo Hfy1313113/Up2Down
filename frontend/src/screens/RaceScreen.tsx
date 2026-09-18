@@ -57,7 +57,7 @@ export function RaceScreen({ demo = false }: { demo?: boolean }) {
       raf = requestAnimationFrame(frame);
     };
 
-    const seq = ["3", "2", "1", "发癫起跑！⚡"];
+    const seq = ["3", "2", "1", "开跑！"];
     let i = 0;
     const tick = () => {
       if (cancelled) return;
@@ -91,28 +91,28 @@ export function RaceScreen({ demo = false }: { demo?: boolean }) {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const rankTitles = ["🥇 冠军【牛市狂飙】", "🥈 亚军【虽瘫犹荣】", "🥉 季军【医学奇迹】", "4️⃣ 殿军【跑道太滑】"];
+  const rankTitles = ["冠军【极限拟合】", "亚军【虽瘫犹荣】", "季军【医学奇迹】", "殿军【跑道太滑】"];
 
   return (
     <div className="race-wrap">
       <canvas ref={canvasRef} className="race-canvas" />
       {countdown && <div className="race-countdown">{countdown}</div>}
       <div className="race-view-btns">
-        <button className={view === "third" ? "active" : ""} onClick={() => setView("third")}>🎥 上帝吃瓜视角</button>
-        <button className={view === "first" ? "active" : ""} onClick={() => setView("first")}>🐴 第一人称晕马 (V)</button>
+        <button className={view === "third" ? "active" : ""} onClick={() => setView("third")}>俯瞰旁观视角</button>
+        <button className={view === "first" ? "active" : ""} onClick={() => setView("first")}>第一人称视角 (V)</button>
       </div>
       {result && (
         <div className="race-banner">
-          <h2>🏁 比赛结束！牛来马翻现场！</h2>
-          <p style={{ color: "#7a93a8", margin: "4px 0 14px", fontSize: "14px" }}>
-            恭喜 <b>{result.name}</b> 冲过终点，本场物理引擎你说了算！
+          <h2>竞速结算</h2>
+          <p style={{ color: "#64748b", margin: "4px 0 14px", fontSize: "14px" }}>
+            <b>{result.name}</b> 率先撞线，物理连杆动力学决胜！
           </p>
           <ol>
             {result.list.map((r, i) => (
-              <li key={i}>{rankTitles[i] ?? `${i + 1}️⃣ 完赛`} {r.name} {r.time}</li>
+              <li key={i}>{rankTitles[i] ?? `第 ${i + 1} 名`} {r.name} {r.time}</li>
             ))}
           </ol>
-          {iAmHost && <button className="primary" onClick={playAgain}>不服再搓一匹 (再来一局) 🔄</button>}
+          {iAmHost && <button className="primary" onClick={playAgain}>重回大厅 (再来一局)</button>}
         </div>
       )}
     </div>

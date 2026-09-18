@@ -6,19 +6,19 @@ export function WaitingScreen() {
   const done = g.players.filter(p => p.done).length;
   return (
     <div className="screen waiting">
-      <h2>🐴 你的手搓生物已就绪！</h2>
-      <div className="meme-slogan">赛道发癫倒计时中…</div>
-      <p style={{ color: "#7a93a8", margin: "6px 0 12px" }}>交卷进度：<b>{done}</b> / {g.players.length} 名抽象派大师</p>
+      <h2>机体装配就绪，等待其他选手</h2>
+      <div className="meme-slogan">赛前动力学校准</div>
+      <p style={{ color: "#64748b", margin: "6px 0 12px" }}>就绪进度：<b>{done}</b> / {g.players.length} 人</p>
       <ul className="players">
         {g.players.map(p => (
           <li key={p.id}>
-            {p.done ? "✅ 笔墨封神" : "⏳ 狂抠细节"} {p.name}{p.id === g.host ? " 👑 发车司机" : ""}
+            {p.done ? "[已就绪]" : "[装配中]"} {p.name}{p.id === g.host ? " [房主]" : ""}
           </li>
         ))}
       </ul>
-      <p className="hint">全员交卷或时间一到，立刻发车狂飙！请抓紧扶手…</p>
+      <p className="hint">全员就绪或时限耗尽将自动触发起跑</p>
       <p className="links">
-        神经直连：P2P × {g.links.p2p}
+        链路状态：P2P 直连 × {g.links.p2p}
         {g.links.relay > 0 ? ` · 兜底中转 × ${g.links.relay}` : ""}
       </p>
     </div>

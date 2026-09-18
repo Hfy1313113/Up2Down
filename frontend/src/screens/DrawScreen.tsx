@@ -6,15 +6,15 @@ import { useGame, finishCurrentPart as finishPartState, prepareBirth } from "../
 import { LOGICAL_W, LOGICAL_H, PARTS, useDrawCanvas, type Part } from "./useDrawCanvas";
 
 const PART_HINTS: Record<Part, string> = {
-  legs: "🦵 腿部：自躯干向下画4条带弯折的长线（折点即膝盖）。大腿:小腿≈1.05:1 速度最快，画成面条当场脱臼！",
-  head: "🐴 头部：画出昂首挺胸的马头与长脖子。脑袋画得越抽象，冲线表情越安详！",
-  butt: "🍑 屁股：画出饱满的马屁股与飘逸马尾巴。尾巴是赛博马儿唯一的空气动力学尾翼！",
+  legs: "腿部：自躯干向下画 4 条带弯折的长线（拐点识别为膝关节）。大腿:小腿≈1.05:1 速度最快，画成直棍或面条容易当场脱臼。",
+  head: "头部：画出马头与脖颈线条。头部高度与前伸量将直接决定机体奔跑时的重心投影与俯仰姿态。",
+  butt: "屁股：画出臀部轮廓与尾巴线条。后肢着力点与尾部空气阻尼将根据臀线自动张成。",
 };
 
-const PART_EMOJI_LABEL: Record<Part, string> = {
-  legs: "🦵 承重四腿",
-  head: "🐴 智慧马头",
-  butt: "🍑 灵魂马尾",
+const PART_LABELS: Record<Part, string> = {
+  legs: "1. 腿部连杆",
+  head: "2. 头部颈廓",
+  butt: "3. 尾部臀线",
 };
 
 export function DrawScreen() {
@@ -59,7 +59,7 @@ export function DrawScreen() {
             <button key={p}
               className={`part-tab ${p === d.part ? "active" : ""} ${finished.includes(p) ? "finished" : ""}`}
               onClick={() => d.setPartTab(p)}>
-              {PART_EMOJI_LABEL[p]}{finished.includes(p) ? " ✓" : ""}
+              {PART_LABELS[p]}{finished.includes(p) ? " ✓" : ""}
             </button>
           ))}
         </div>
@@ -69,7 +69,7 @@ export function DrawScreen() {
       </div>
 
       {g.partLeft <= 8 && (
-        <div className="urgent-hint">🚨 倒计时告急！别扣细节了，瞎画两笔也能跑！</div>
+        <div className="urgent-hint">倒计时告急：未完成部位将由系统按 0.7 效率代偿补全！</div>
       )}
 
       <canvas ref={d.canvasRef} width={LOGICAL_W} height={LOGICAL_H} className="draw-canvas" />
@@ -80,7 +80,7 @@ export function DrawScreen() {
         <button onClick={d.clear}>清空本部位</button>
         <label className="chk">
           <input type="checkbox" checked={preview} onChange={e => onPreview(e.target.checked)} />
-          骨骼预览
+          连杆骨骼预览
         </label>
         <button className="primary" onClick={doFinishPart}>
           完成本部位{d.part === "butt" ? "并提交" : ""}

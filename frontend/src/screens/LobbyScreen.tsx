@@ -68,9 +68,9 @@ export function LobbyScreen() {
 
   return (
     <div className="screen lobby">
-      <h1>🐎 奔跑即故障 · Up2Down</h1>
-      <div className="meme-slogan">牛来马翻，边画边瘫！</div>
-      <sub className="meme-sub"><del>不能只让作者一个人吃上这种细糠😭</del></sub>
+      <h1>奔跑即故障 · Up2Down</h1>
+      <div className="meme-slogan">牛来马翻，边画边瘫</div>
+      <sub className="meme-sub"><del>不能只让作者一个人吃上这种细糠</del></sub>
 
       {g.error && <p className="error">{g.error}</p>}
 
@@ -79,15 +79,15 @@ export function LobbyScreen() {
           <input
             value={name}
             onChange={e => setName(e.target.value)}
-            placeholder="你的代号（选填，默认随机）"
+            placeholder="选手代号（选填，默认随机）"
             maxLength={12}
           />
 
           <div className="digit-group">
             <div className="digit-header">
-              <span>四位数字房间号</span>
+              <span>四位房间号</span>
               <button type="button" className="digit-dice-btn" onClick={rollNewRoom}>
-                🎲 随机换号
+                随机换号
               </button>
             </div>
             <div className="digit-inputs">
@@ -110,25 +110,25 @@ export function LobbyScreen() {
           </div>
 
           <button onClick={onJoin} disabled={joining || room.length !== 4}>
-            {joining ? "接入神经网…" : "进入房间"}
+            {joining ? "正在连接…" : "进入房间"}
           </button>
         </div>
       ) : (
         <div className="lobby-wait">
-          <p>当前房间 <b>{g.room}</b> · 集合进度 <b>{g.players.length}/4</b> 人</p>
+          <p>房间号 <b>{g.room}</b> · 集合 <b>{g.players.length}/4</b> 人</p>
           <ul className="players">
             {g.players.map(p => (
               <li key={p.id} className={p.id === g.host ? "host" : ""}>
-                {p.name}{p.id === g.myId ? "（你）" : ""}{p.id === g.host ? " 👑 发车司机" : ""}
+                {p.name}{p.id === g.myId ? "（你）" : ""}{p.id === g.host ? " [房主]" : ""}
               </li>
             ))}
           </ul>
-          <p className="hint">{iAmHost ? "👑 你是发车司机，全员就绪后即可发车！" : "☕ 正在等待房主发车，深呼吸放平心态…"}</p>
+          <p className="hint">{iAmHost ? "你是房主，全员就绪后点击起跑" : "等待房主开赛…"}</p>
           <p className="links">
-            神经直连：P2P × {g.links.p2p}
+            链路状态：P2P 直连 × {g.links.p2p}
             {g.links.relay > 0 ? ` · 兜底中转 × ${g.links.relay}` : ""}
           </p>
-          {iAmHost && <button className="primary" onClick={startGame}>全员起跑发车 🚀</button>}
+          {iAmHost && <button className="primary" onClick={startGame}>全员起跑发车</button>}
         </div>
       )}
     </div>
