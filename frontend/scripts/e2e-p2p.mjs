@@ -1,17 +1,19 @@
 // e2e-p2p.mjs —— 三客户端端到端联机验证（WebRTC P2P 数据面）：
-// 起 wrangler dev（Worker 控制面）+ vite dev，三个浏览器上下文各自真实绘制三部位，
-// 走完 join → start → draw → birth → done → race，断言：
-//   1) 等待屏显示 P2P × 2（DataChannel 全部建连成功，而非兜底中转）
+// 三个浏览器上下文各自真实绘制三部位，走完 join → start → draw → birth → done → race，断言：
+//   1) 各端显示 P2P × 2（DataChannel 全部建连成功，而非兜底中转）
 //   2) 三端都进入赛跑并给出同一名次结果（确定性同算一致）
-// 用法：node scripts/e2e-p2p.mjs
-import { spawn } from "node:child_process";
+// 用法：
+//   node scripts/e2e-p2p.mjs          开发形态：vite dev 前端 + wrangler dev 控制面
+//   node scripts/e2e-p2p.mjs --prod   生产形态：只起 wrangler dev（它同时托管 dist 静态产物，前端同源连信令）
+import { spawn, spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const repo = path.resolve(root, "..");
-// 随机端口，避免上一次运行残留进程占用；VITE_SIGNAL_URL 指向本次 wrangler 端口
+const PROD = process.argv.includes("--prod");
+// 随机端口，避免上一次运行残留进程占用
 const VITE_PORT = 5100 + Math.floor(Math.random() * 700);
 const SIGNAL_PORT = 8800 + Math.floor(Math.random() * 150);
 const ROOM = `e2e${Date.now() % 100000}`;
@@ -34,10 +36,19 @@ function killTree(child) {
   } catch { /* 已退出 */ }
 }
 
+// 生产形态：先把前端构建进 dist，由 Worker 的 [assets] 托管
+let vite = null;
+if (PROD) {
+  const build = spawnSync("npm", ["run", "build"], { cwd: root, shell: true, stdio: "inherit" });
+  if (build.status !== 0) { console.error("FAIL 前端构建失败"); process.exit(1); }
+}
+
 const wrangler = spawn("npx", ["wrangler", "dev", "--port", String(SIGNAL_PORT)],
   { cwd: path.join(repo, "signaling"), shell: true });
-const vite = spawn("npx", ["vite", "--port", String(VITE_PORT), "--strictPort"],
-  { cwd: root, shell: true, env: { ...process.env, VITE_SIGNAL_URL: `ws://localhost:${SIGNAL_PORT}` } });
+if (!PROD) {
+  vite = spawn("npx", ["vite", "--port", String(VITE_PORT), "--strictPort"],
+    { cwd: root, shell: true, env: { ...process.env, VITE_SIGNAL_URL: `ws://localhost:${SIGNAL_PORT}` } });
+}
 
 const cleanup = () => { killTree(wrangler); killTree(vite); };
 process.on("exit", cleanup);
@@ -54,14 +65,20 @@ try {
 } catch {
   await fail("wrangler dev 未就绪");
 }
-await waitForLine(vite, /Local:/i, 60_000);
+if (!PROD) await waitForLine(vite, /Local:/i, 60_000);
 
 const health = await fetch(`http://localhost:${SIGNAL_PORT}/health`).then(r => r.json()).catch(() => null);
 if (!health?.ok) await fail("Worker /health 不可用");
 console.log("PASS Worker /health 就绪");
 
 const browser = await chromium.launch();
-const url = `http://localhost:${VITE_PORT}/`;
+// 生产形态由 Worker 自己托管静态产物，前端同源连信令
+const url = `http://localhost:${PROD ? SIGNAL_PORT : VITE_PORT}/`;
+if (PROD) {
+  const html = await fetch(url).then(r => r.text()).catch(() => "");
+  if (!html.includes("<div id=\"root\">")) await fail("Worker 未托管前端静态产物（dist 缺失或 [assets] 配置有误）");
+  console.log("PASS Worker 托管静态产物（同源部署形态）");
+}
 const pages = [];
 for (let i = 0; i < N; i++) {
   const ctx = await browser.newContext({ viewport: { width: 1100, height: 760 } });

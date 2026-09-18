@@ -31,8 +31,15 @@ export interface Transport {
   readonly room: string | null;
 }
 
+// 控制面地址：
+// - 开发态（vite dev，5173）：默认连本机 wrangler dev 的 8787 端口
+// - 生产态（由同一个 Worker 托管静态产物）：同源，无需任何构建期变量
+// - 仍可用 VITE_SIGNAL_URL 覆盖（例如前端单独挂 Pages、控制面在别处时）
 const SIGNAL_URL: string =
-  (import.meta.env.VITE_SIGNAL_URL as string | undefined) ?? "ws://localhost:8787";
+  (import.meta.env.VITE_SIGNAL_URL as string | undefined) ??
+  (import.meta.env.DEV
+    ? `ws://${location.hostname}:8787`
+    : `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}`);
 
 const RTC_CONFIG: RTCConfiguration = {
   iceServers: [{ urls: "stun:stun.l.google.com:19302" }],

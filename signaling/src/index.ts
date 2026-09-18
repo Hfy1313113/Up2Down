@@ -207,10 +207,12 @@ export default {
       const stub = env.ROOM.get(id);
       return stub.fetch(request);
     }
-    return new Response("not found", { status: 404 });
+    // 其余路径交给静态产物（frontend/dist），未命中的前端路由由 SPA 回落返回 index.html
+    return env.ASSETS.fetch(request);
   },
 };
 
 interface Env {
   ROOM: DurableObjectNamespace;
+  ASSETS: Fetcher;
 }

@@ -1,5 +1,12 @@
 # 控制面架构
 
+## 控制面与静态托管
+
+`signaling/` 的 Worker 同时承担两件事：托管家目录 `[assets]`（`frontend/dist`，未命中的
+路径按 SPA 回落到 `index.html`）与提供控制面。路由优先级：静态资源命中即直接返回；
+否则进入 Worker 的 `fetch`（`/health` 与 `/rooms/<房间号>`），其余路径交给 `env.ASSETS.fetch`。
+这样前端与信令同源，不需要任何构建期地址变量。
+
 ## 房间模型
 
 `src/index.ts` 中 `Room` 是唯一的 Durable Object 类。Worker 入口按路径

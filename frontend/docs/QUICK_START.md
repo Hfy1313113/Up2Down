@@ -17,9 +17,10 @@ npx tsc --noEmit   # 类型检查
 
 | 变量 | 默认 | 说明 |
 |---|---|---|
-| `VITE_SIGNAL_URL` | `ws://localhost:8787` | 控制面 WebSocket 地址；线上用 `wss://<Worker 域名>` |
+| `VITE_SIGNAL_URL` | 见下 | 一般**不需要设置**：开发态默认 `ws://localhost:8787`，构建产物由 Worker 托管时同源自动推导 |
 
-在 `frontend/.env.local` 中覆盖即可（该文件不入库）。
+在 `frontend/.env.local` 中覆盖即可（该文件不入库）。只有在把前端单独部署到别处
+（例如 Cloudflare Pages）时才需要显式指定 `wss://<Worker 域名>`。
 
 ## 单机全流程自测
 
@@ -42,9 +43,10 @@ node scripts/screenshot.mjs     # shots/birth.png、shots/race-third.png、shots
 ## 联机端到端验证
 
 ```bash
-node scripts/e2e-p2p.mjs
+node scripts/e2e-p2p.mjs          # 开发形态：vite dev + wrangler dev
+node scripts/e2e-p2p.mjs --prod   # 生产形态：只起 wrangler dev（它托管 dist，前端同源连信令）
 ```
 
-自动在随机端口起 `wrangler dev` 与 `vite`，三个浏览器上下文真实绘制并走完全流程，
+自动在随机端口起服务（`--prod` 会先 `npm run build`），三个浏览器上下文真实绘制并走完全流程，
 断言：控制面 `/health` 正常、三端同房、**每端 P2P × 2 直连**、三端赛跑结果一致。
 失败时会打印页面文本并截图到 `shots/e2e-fail-<n>.png`。

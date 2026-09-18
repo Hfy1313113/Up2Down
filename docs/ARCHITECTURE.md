@@ -5,10 +5,14 @@
 ```
 浏览器 A ══ WebRTC DataChannel（画作 / 开赛载荷，点对点）══ 浏览器 B/C/D
     │
+    │  HTTP：前端静态资源
     └── WebSocket（控制面：成员 / 信令 / 保活 / 超时兜底）
               │
         Cloudflare Worker ── Durable Object「Room」按房间号路由
 ```
+
+- **同一个 Worker 也是静态托管方**：`[assets]` 指向 `frontend/dist`，`/` 及其前端路由
+  由它返回，因此整站只有一个域名、一份部署，前端与控制面天然同源。
 
 - **数据面**：`RTCDataChannel`（每对玩家一条，`ordered: true`）。网状拓扑，4 人 = 每端 3 条连接。
   画作提交、开赛载荷等全部点对点传输，**不产生任何 Cloudflare 流量**。
@@ -20,7 +24,7 @@
 
 ## 前端结构
 
-- **Vite + React + TypeScript**，无服务端渲染，纯静态产物（可挂 Pages）。
+- **Vite + React + TypeScript**，纯静态产物，由同一个 Worker 的 `[assets]` 托管（也可单独挂 Pages）。
 - `src/game/`：纯算法，无 DOM 依赖——分部位识别（`recognize.ts`）、速度公式（`metrics.ts`）、
   步态相位（`gait.ts`）、确定性赛跑积分（`raceSim.ts`）。可被单测直接驱动。
 - `src/three/`：three.js 场景层。`horseMesh.ts` 由识别模型生成 3D 马（双关节连杆按步态正解驱动）；

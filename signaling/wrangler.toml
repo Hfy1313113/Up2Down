@@ -2,6 +2,16 @@ name = "up2down-signaling"
 main = "src/index.ts"
 compatibility_date = "2026-09-01"
 
+# 同一个 Worker 既托管前端静态产物，又提供控制面：
+#   /                → frontend/dist（SPA，未命中路径回落到 index.html）
+#   /health          → 健康检查
+#   /rooms/<房间号>   → WebSocket 升级，落到 Durable Object
+# 部署前必须先构建前端：cd frontend && npm run build
+[assets]
+directory = "../frontend/dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+
 # Durable Object 房间（每房间一个实例）
 [durable_objects]
 bindings = [{ name = "ROOM", class_name = "Room" }]

@@ -29,47 +29,44 @@ npm run dev
 
 | 位置 | 变量 | 默认 | 说明 |
 |---|---|---|---|
-| frontend | `VITE_SIGNAL_URL` | `ws://localhost:8787` | 控制面地址；线上填 `wss://<你的 Worker 域名>` |
+| frontend | `VITE_SIGNAL_URL` | 见下 | 只需在前端单独部署到别处时才设置；默认开发态连 `ws://localhost:8787`，生产态同源 |
 | signaling | `DRAW_TIMEOUT_MS` | `200000` | 绘制阶段服务端兜底超时（改常量即可） |
 
 ## 测试与验证
 
 ```bash
 cd frontend
-npm test                      # vitest：识别 / 速度公式 / 步态 / 赛跑积分（18 例）
-npx tsc --noEmit              # 类型检查
-npm run build                 # 生产构建
+npm test                            # vitest：识别 / 速度公式 / 步态 / 赛跑积分（18 例）
+npx tsc --noEmit                    # 类型检查
+npm run build                       # 生产构建
 
-node scripts/screenshot.mjs   # 渲染截图 → shots/{birth,race-third,race-first}.png
-node scripts/e2e-p2p.mjs      # 三客户端真实绘制 + P2P 直连 + 名次一致性（自动起两边服务）
+node scripts/screenshot.mjs         # 渲染截图 → shots/{birth,race-third,race-first}.png
+node scripts/e2e-p2p.mjs            # 开发形态：三客户端真实绘制 + P2P 直连 + 名次一致性
+node scripts/e2e-p2p.mjs --prod     # 生产形态：只起 Worker（它自己托管 dist），同源联机
 
 cd ../signaling
-npx wrangler dev --port 8787  # 另开一个终端
-node scripts/verify.mjs        # 成员/房主移交/定向转发
-node scripts/signal-verify.mjs # 信令 offer/answer/candidate 转发
-node scripts/e2e-verify.mjs    # 控制面完整流程与画作不经服务端
-node scripts/timeout-verify.mjs# 超时兜底事件（含房主断线）
+npx wrangler dev --port 8787        # 另开一个终端
+node scripts/verify.mjs             # 成员/房主移交/定向转发
+node scripts/signal-verify.mjs      # 信令 offer/answer/candidate 转发
+node scripts/e2e-verify.mjs         # 控制面完整流程与画作不经服务端
+node scripts/timeout-verify.mjs     # 超时兜底事件（含房主断线）
 ```
 
-## 部署
-
-### 控制面（Cloudflare Workers，含 Durable Objects）
+## 部署（单个 Worker）
 
 ```bash
-cd signaling
+cd frontend && npm run build        # 必须先构建：Worker 的 [assets] 指向 frontend/dist
+cd ../signaling
 npx wrangler login
-npx wrangler deploy
-# 记下输出域名，例如 up2down-signaling.<account>.workers.dev
+npx wrangler deploy                 # 输出 https://up2down-signaling.<account>.workers.dev
 ```
 
-### 前端（Cloudflare Pages）
+一个 Worker 同时提供：`/` → 前端静态产物（SPA 回落）、`/health` → 健康检查、
+`/rooms/<房间号>` → WebSocket 信令与 Durable Object 房间。把域名发给好友即可开局，
+前端同源连信令，无需任何构建期变量。
 
-- 构建命令：`npm run build`（工作目录 `frontend`）
-- 产物目录：`dist`
-- 环境变量：`VITE_SIGNAL_URL=wss://up2down-signaling.<account>.workers.dev`
-
-部署后把 Pages 域名发给好友，各自输入同一房间号即可开局：静态资源走 Pages，
-游戏数据走玩家之间的 P2P 直连，控制面只交换 KB 级消息。
+如果坚持把前端挂在 Cloudflare Pages：Pages 的构建命令 `npm run build`、根目录 `frontend`、
+输出目录 `dist`，并设置环境变量 `VITE_SIGNAL_URL=wss://up2down-signaling.<account>.workers.dev`。
 
 ## 游戏流程
 
