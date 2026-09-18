@@ -53,17 +53,21 @@ cd frontend && npm install && npm run dev                # http://localhost:5173
 同一个 Worker 既托管前端静态产物（`[assets]` 指向 `frontend/dist`），又提供控制面与 Durable Object，
 **只需要一个项目、一个域名**，前端同源连信令，不需要任何构建期变量。
 
+- Cloudflare 项目名：**`up2down`**（与 `signaling/wrangler.toml` 的 `name` 一致）
+- 生产域名（唯一公开域名）：**https://up2down.arr2018.dpdns.org**
+
 ```bash
 cd frontend && npm run build        # 产出 frontend/dist（必须先构建，Worker 才有静态资源可托管）
 cd ../signaling
 npx wrangler login
-npx wrangler deploy                 # 输出 https://up2down-signaling.<account>.workers.dev
+npx wrangler deploy                 # 部署到 up2down
 ```
 
-把这个域名发给好友即可开局：静态资源与信令由该 Worker 承担，游戏数据走玩家之间的 P2P 直连。
+部署完成后访问 https://up2down.arr2018.dpdns.org 即可开局：静态资源与信令由该 Worker 承担，
+游戏数据走玩家之间的 P2P 直连。
 
 > 若确实想把前端单独挂到 Cloudflare Pages：构建 `frontend`（产物目录 `dist`）并设置
-> `VITE_SIGNAL_URL=wss://<你的 Worker 域名>` 即可，代码无需改动（该变量会覆盖同源默认值）。
+> `VITE_SIGNAL_URL=wss://up2down.arr2018.dpdns.org` 即可，代码无需改动（该变量会覆盖同源默认值）。
 
 ## 文档导航
 

@@ -54,19 +54,22 @@ node scripts/timeout-verify.mjs     # 超时兜底事件（含房主断线）
 
 ## 部署（单个 Worker）
 
+- Cloudflare 项目名：`up2down`
+- 生产域名（唯一公开域名）：`https://up2down.arr2018.dpdns.org`
+
 ```bash
 cd frontend && npm run build        # 必须先构建：Worker 的 [assets] 指向 frontend/dist
 cd ../signaling
 npx wrangler login
-npx wrangler deploy                 # 输出 https://up2down-signaling.<account>.workers.dev
+npx wrangler deploy                 # 部署到 up2down
 ```
 
 一个 Worker 同时提供：`/` → 前端静态产物（SPA 回落）、`/health` → 健康检查、
-`/rooms/<房间号>` → WebSocket 信令与 Durable Object 房间。把域名发给好友即可开局，
-前端同源连信令，无需任何构建期变量。
+`/rooms/<房间号>` → WebSocket 信令与 Durable Object 房间。把 https://up2down.arr2018.dpdns.org
+发给好友即可开局，前端同源连信令，无需任何构建期变量。
 
 如果坚持把前端挂在 Cloudflare Pages：Pages 的构建命令 `npm run build`、根目录 `frontend`、
-输出目录 `dist`，并设置环境变量 `VITE_SIGNAL_URL=wss://up2down-signaling.<account>.workers.dev`。
+输出目录 `dist`，并设置环境变量 `VITE_SIGNAL_URL=wss://up2down.arr2018.dpdns.org`。
 
 ## 游戏流程
 

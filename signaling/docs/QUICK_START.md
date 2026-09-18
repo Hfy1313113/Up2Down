@@ -29,21 +29,26 @@ node scripts/timeout-verify.mjs  # 超时兜底事件（含房主断线、round_
 
 ## 部署
 
+- Cloudflare 项目名：`up2down`
+- 生产域名（唯一公开域名）：`https://up2down.arr2018.dpdns.org`
+
 ```bash
 cd ../frontend && npm run build  # 必须先构建：dist 会被打包进 Worker
 cd ../signaling
 npx wrangler login
-npx wrangler deploy              # 输出 up2down-signaling.<account>.workers.dev
+npx wrangler deploy              # 部署到 up2down
 npx wrangler deploy --dry-run    # 只构建校验，不上传
 ```
 
-部署后该域名即完整站点：`/` 前端、`/rooms/<房间号>` 信令，不需要额外配置前端地址变量。
+部署后 https://up2down.arr2018.dpdns.org 即完整站点：`/` 前端、`/rooms/<房间号>` 信令，
+不需要额外配置前端地址变量。
 
 ## 配置
 
 | 位置 | 项 | 默认 | 说明 |
 |---|---|---|---|
 | `src/index.ts` | `DRAW_TIMEOUT_MS` | `200000` | 绘制阶段超时兜底；也可由 `phase_start` 消息临时指定 |
+| `wrangler.toml` | `name` | `up2down` | Cloudflare 项目名，需与控制台项目一致 |
 | `wrangler.toml` | `[assets] directory` | `../frontend/dist` | 静态产物目录，相对 wrangler.toml |
 | `wrangler.toml` | `[assets] binding` | `ASSETS` | 供 Worker 在未命中路径时回落 SPA |
 | `wrangler.toml` | `ROOM` binding | — | Durable Object 命名空间，迁移记录改绑定时需追加 |
