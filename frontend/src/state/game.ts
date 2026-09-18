@@ -71,9 +71,15 @@ let partTimer: ReturnType<typeof setInterval> | null = null;
 
 // ---------- 大厅 ----------
 export async function join(name: string, room: string): Promise<void> {
+  const cleanRoom = room.trim();
+  if (!/^\d{4}$/.test(cleanRoom)) {
+    const msg = "房间号仅允许 4 位纯数字";
+    setState({ error: msg });
+    throw new Error(msg);
+  }
   setState({ error: null });
   try {
-    await transport.connect(name, room);
+    await transport.connect(name, cleanRoom);
   } catch (e) {
     setState({ error: (e as Error).message });
     throw e;

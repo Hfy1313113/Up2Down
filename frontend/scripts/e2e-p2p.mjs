@@ -16,7 +16,7 @@ const PROD = process.argv.includes("--prod");
 // 随机端口，避免上一次运行残留进程占用
 const VITE_PORT = 5100 + Math.floor(Math.random() * 700);
 const SIGNAL_PORT = 8800 + Math.floor(Math.random() * 150);
-const ROOM = `e2e${Date.now() % 100000}`;
+const ROOM = String(Math.floor(1000 + Math.random() * 9000));
 const N = 3;
 
 function waitForLine(child, re, timeoutMs) {
@@ -91,9 +91,12 @@ for (let i = 0; i < N; i++) {
 for (let i = 0; i < N; i++) {
   const p = pages[i];
   await p.goto(url);
-  await p.fill('input[placeholder="你的名字"]', `骑手${i}`);
-  await p.fill('input[placeholder="房间号"]', ROOM);
-  await p.click("button:has-text(\"加入房间\")");
+  await p.fill('input[placeholder*="代号"]', `骑手${i}`);
+  const digitBoxes = await p.$$(".digit-box");
+  for (let d = 0; d < 4; d++) {
+    await digitBoxes[d].fill(ROOM[d]);
+  }
+  await p.click('button:has-text("进入房间")');
   await p.waitForSelector(".players", { timeout: 15_000 });
 }
 await pages[0].waitForFunction(
