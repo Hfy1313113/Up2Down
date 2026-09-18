@@ -163,7 +163,7 @@ function analyze(rawStrokes: RawStroke[]): HorseModel {
   });
 
   // ---------- 2. 躯干 ----------
-  const rest = strokes.filter((s, idx) => !usedIdx.has(idx));
+  const rest = strokes.filter((_, idx) => !usedIdx.has(idx));
   let torsoStroke: Stroke | null = null, bestW = -1;
   for (const s of rest) {
     const b = strokeBBox(s.points);

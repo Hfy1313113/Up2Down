@@ -20,7 +20,7 @@ export default function App() {
     case "birth":
       return <BirthScreen />;
     case "waiting":
-      return <WaitingScreen doneNames={g.doneNames} total={g.players.length} />;
+      return <WaitingScreen />;
     case "race":
       return <RaceScreen />;
     default:
