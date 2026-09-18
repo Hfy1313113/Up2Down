@@ -3,12 +3,18 @@
 import { useEffect, useRef, useState } from "react";
 import { Recognize } from "../game/recognize";
 import { useGame, finishCurrentPart as finishPartState, prepareBirth } from "../state/game";
-import { LOGICAL_W, LOGICAL_H, PARTS, PART_LABEL, useDrawCanvas, type Part } from "./useDrawCanvas";
+import { LOGICAL_W, LOGICAL_H, PARTS, useDrawCanvas, type Part } from "./useDrawCanvas";
 
 const PART_HINTS: Record<Part, string> = {
-  legs: "画出四条向下伸出的长线，中间带明显弯折（弯折处就是膝关节）。大腿:小腿≈1.05:1 跑得最快！",
-  head: "画出马的头部和脖子（朝上前方）。大小和位置会成为小马的脑袋！",
-  butt: "画出屁股和后腿上方/尾巴。尾巴会挂在躯干后端～",
+  legs: "🦵 腿部：自躯干向下画4条带弯折的长线（折点即膝盖）。大腿:小腿≈1.05:1 速度最快，画成面条当场脱臼！",
+  head: "🐴 头部：画出昂首挺胸的马头与长脖子。脑袋画得越抽象，冲线表情越安详！",
+  butt: "🍑 屁股：画出饱满的马屁股与飘逸马尾巴。尾巴是赛博马儿唯一的空气动力学尾翼！",
+};
+
+const PART_EMOJI_LABEL: Record<Part, string> = {
+  legs: "🦵 承重四腿",
+  head: "🐴 智慧马头",
+  butt: "🍑 灵魂马尾",
 };
 
 export function DrawScreen() {
@@ -53,7 +59,7 @@ export function DrawScreen() {
             <button key={p}
               className={`part-tab ${p === d.part ? "active" : ""} ${finished.includes(p) ? "finished" : ""}`}
               onClick={() => d.setPartTab(p)}>
-              {PART_LABEL[p]}{finished.includes(p) ? " ✓" : ""}
+              {PART_EMOJI_LABEL[p]}{finished.includes(p) ? " ✓" : ""}
             </button>
           ))}
         </div>
@@ -61,6 +67,10 @@ export function DrawScreen() {
           <span className={g.partLeft <= 10 ? "urgent" : ""}>{g.partLeft}</span>s
         </div>
       </div>
+
+      {g.partLeft <= 8 && (
+        <div className="urgent-hint">🚨 倒计时告急！别扣细节了，瞎画两笔也能跑！</div>
+      )}
 
       <canvas ref={d.canvasRef} width={LOGICAL_W} height={LOGICAL_H} className="draw-canvas" />
 

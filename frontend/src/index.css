@@ -17,21 +17,33 @@ body {
   width: 100%;
   text-align: center;
 }
-h1 { margin: 0 0 4px; color: #e2703a; }
+h1 { margin: 0 0 4px; color: #e2703a; font-size: 28px; }
 .subtitle { margin-top: 0; color: #7a93a8; }
+.meme-slogan { font-size: 20px; font-weight: 800; color: #e2703a; margin: 4px 0 2px; }
+.meme-sub { display: inline-block; color: #8899a6; opacity: 0.72; font-size: 13px; margin-bottom: 8px; }
+.meme-tags { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; margin: 8px 0 14px; }
+.meme-tag {
+  background: #eef5fa; color: #486581; font-size: 12px; font-weight: 600;
+  padding: 3px 10px; border-radius: 12px; border: 1px solid #d9e2ec;
+}
 .error { color: #c0392b; }
 
 .join-form { display: flex; flex-direction: column; gap: 10px; max-width: 320px; margin: 20px auto 0; }
 input {
   padding: 10px 14px; border: 2px solid #cddbe6; border-radius: 10px; font-size: 15px;
+  transition: all 0.2s;
 }
-input:focus { outline: none; border-color: #e2703a; }
+input:focus { outline: none; border-color: #e2703a; box-shadow: 0 0 0 3px rgba(226,112,58,0.18); }
 button {
   padding: 10px 18px; border: none; border-radius: 10px; background: #e2703a;
-  color: #fff; font-size: 15px; cursor: pointer;
+  color: #fff; font-size: 15px; font-weight: 600; cursor: pointer;
+  transition: transform 0.1s, background 0.2s;
 }
+button:hover:not(:disabled) { background: #d06028; }
+button:active:not(:disabled) { transform: translateY(2px); }
 button:disabled { background: #b9c6d0; cursor: default; }
 button.primary { background: #59b56b; }
+button.primary:hover:not(:disabled) { background: #4ca35e; }
 
 .players { list-style: none; padding: 0; margin: 12px auto; max-width: 320px; text-align: left; }
 .players li {
@@ -47,17 +59,19 @@ button.primary { background: #59b56b; }
 .part-tab.active { background: #e2703a; color: #fff; }
 .part-tab.finished { background: #bfe3c6; }
 .countdown { font-size: 24px; font-weight: bold; }
-.countdown .urgent, .countdown span.urgent { color: #c0392b; }
+.countdown .urgent, .countdown span.urgent { color: #c0392b; animation: urgent-pulse 0.8s infinite alternate; }
+@keyframes urgent-pulse { from { transform: scale(1); } to { transform: scale(1.18); } }
+.urgent-hint { color: #c0392b; font-weight: bold; font-size: 13px; margin: 4px 0 0; animation: urgent-pulse 0.6s infinite alternate; }
 .draw-canvas {
   width: 100%; aspect-ratio: 960 / 640; display: block;
   background: #fff; border: 2px solid #cddbe6; border-radius: 12px;
   touch-action: none; cursor: crosshair;
 }
-.draw-hint { color: #7a93a8; font-size: 14px; }
+.draw-hint { color: #536b82; font-size: 14px; font-weight: 500; }
 .draw-tools { display: flex; gap: 10px; justify-content: center; align-items: center; flex-wrap: wrap; }
 .draw-tools button { background: #7a93a8; }
 .draw-tools button.primary { background: #59b56b; }
-.chk { display: flex; gap: 6px; align-items: center; }
+.chk { display: flex; gap: 6px; align-items: center; font-weight: 500; color: #486581; }
 .draw-status { color: #59a06b; }
 
 /* ---- 诞生仪式 ---- */
@@ -73,7 +87,24 @@ button.primary { background: #59b56b; }
 @keyframes birth-text-pop { from { transform: scale(0); } to { transform: scale(1); } }
 .birth-canvas { background: transparent; }
 .birth-confetti { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-.birth-timer { color: #7a93a8; }
+.birth-timer { color: #7a93a8; font-weight: 500; }
+
+/* ---- 抽象体检鉴定卡 ---- */
+.appraisal-card {
+  margin: 14px auto 8px;
+  background: #fff9f2;
+  border: 2px dashed #f39c12;
+  border-radius: 12px;
+  padding: 12px 18px;
+  max-width: 480px;
+  text-align: left;
+  box-shadow: 0 4px 14px rgba(243, 156, 18, 0.12);
+}
+.appraisal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.appraisal-title { font-weight: 800; font-size: 15px; color: #d35400; }
+.appraisal-grade { background: #e74c3c; color: #fff; font-size: 12px; font-weight: 800; padding: 2px 8px; border-radius: 6px; }
+.appraisal-row { font-size: 13px; color: #555; margin: 3px 0; }
+.appraisal-row b { color: #2c3e50; }
 
 /* ---- 赛跑 ---- */
 .race-wrap { position: fixed; inset: 0; }
@@ -90,11 +121,14 @@ button.primary { background: #59b56b; }
 .race-view-btns button.active { background: #e2703a; }
 .race-banner {
   position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-  background: rgba(255,255,255,.95); border-radius: 16px; padding: 24px 40px;
-  box-shadow: 0 8px 30px rgba(30,60,90,.3); text-align: center;
+  background: rgba(255,255,255,.98); border-radius: 20px; padding: 28px 44px;
+  box-shadow: 0 12px 40px rgba(30,60,90,.35); text-align: center;
+  border: 3px solid #e2703a; min-width: 320px;
 }
-.race-banner ol { list-style: none; padding: 0; text-align: left; margin: 12px 0; }
-.race-banner li { padding: 4px 0; }
+.race-banner h2 { margin: 0 0 10px; color: #e2703a; font-size: 24px; }
+.race-banner ol { list-style: none; padding: 0; text-align: left; margin: 14px 0 20px; }
+.race-banner li { padding: 6px 0; font-size: 16px; border-bottom: 1px dashed #e2e8f0; }
+.race-banner li:last-child { border-bottom: none; }
 
 /* ---- 诞生仪式（3D） ---- */
 .birth-stage3d { position: relative; min-height: 480px; border-radius: 12px; overflow: hidden; cursor: grab; background: linear-gradient(#bfe6ff, #eaf6ff); }

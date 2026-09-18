@@ -57,14 +57,14 @@ export function RaceScreen({ demo = false }: { demo?: boolean }) {
       raf = requestAnimationFrame(frame);
     };
 
-    const seq = ["3", "2", "1", "GO!"];
+    const seq = ["3", "2", "1", "发癫起跑！⚡"];
     let i = 0;
     const tick = () => {
       if (cancelled) return;
       if (i < seq.length) {
         setCountdown(seq[i]);
         i++;
-        timers.push(setTimeout(tick, i === seq.length ? 500 : 800));
+        timers.push(setTimeout(tick, i === seq.length ? 650 : 800));
       } else {
         setCountdown(null);
         last = 0;
@@ -91,23 +91,28 @@ export function RaceScreen({ demo = false }: { demo?: boolean }) {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  const rankTitles = ["🥇 冠军【牛市狂飙】", "🥈 亚军【虽瘫犹荣】", "🥉 季军【医学奇迹】", "4️⃣ 殿军【跑道太滑】"];
+
   return (
     <div className="race-wrap">
       <canvas ref={canvasRef} className="race-canvas" />
       {countdown && <div className="race-countdown">{countdown}</div>}
       <div className="race-view-btns">
-        <button className={view === "third" ? "active" : ""} onClick={() => setView("third")}>旁观视角</button>
-        <button className={view === "first" ? "active" : ""} onClick={() => setView("first")}>马儿视角 (V)</button>
+        <button className={view === "third" ? "active" : ""} onClick={() => setView("third")}>🎥 上帝吃瓜视角</button>
+        <button className={view === "first" ? "active" : ""} onClick={() => setView("first")}>🐴 第一人称晕马 (V)</button>
       </div>
       {result && (
         <div className="race-banner">
-          <h2>🏆 {result.name} 获胜！</h2>
+          <h2>🏁 比赛结束！牛来马翻现场！</h2>
+          <p style={{ color: "#7a93a8", margin: "4px 0 14px", fontSize: "14px" }}>
+            恭喜 <b>{result.name}</b> 冲过终点，本场物理引擎你说了算！
+          </p>
           <ol>
             {result.list.map((r, i) => (
-              <li key={i}>{["🥇", "🥈", "🥉", "4️⃣"][i]} {r.name} {r.time}</li>
+              <li key={i}>{rankTitles[i] ?? `${i + 1}️⃣ 完赛`} {r.name} {r.time}</li>
             ))}
           </ol>
-          {iAmHost && <button onClick={playAgain}>再来一局</button>}
+          {iAmHost && <button className="primary" onClick={playAgain}>不服再搓一匹 (再来一局) 🔄</button>}
         </div>
       )}
     </div>

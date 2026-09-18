@@ -4,8 +4,56 @@ import { useEffect, useRef, useState } from "react";
 import { BirthScene } from "../three/birthScene";
 import { useGame, sendDone } from "../state/game";
 import { COLORS } from "../game/raceSim";
+import type { HorseModel } from "../game/types";
 
 const OBSERVE_SECONDS = 15;
+
+function getAppraisal(model: HorseModel | null) {
+  if (!model) return null;
+  const nLegs = model.legs.length;
+  let ratioAvg = 0;
+  let lenAvg = 0;
+  for (const l of model.legs) {
+    ratioAvg += l.L1 / (l.L2 || 1);
+    lenAvg += l.L1 + l.L2;
+  }
+  ratioAvg = nLegs > 0 ? ratioAvg / nLegs : 1;
+  lenAvg = nLegs > 0 ? lenAvg / nLegs : 120;
+
+  let title = "大连手搓纯种马";
+  let trait = "四肢健在但各走各的，散发迷之自信";
+  let grade = "SSS 逆天物种";
+  let docComment = "物理引擎看了沉默三秒，骨科医生连夜挂号";
+
+  if (model.quality < 0.8) {
+    title = "赛博合成拼装兽";
+    trait = "疑似少画了腿，系统自动打折补全假肢";
+    grade = "SR 抽象残缺美";
+    docComment = "主治诊断：建议配一副拐杖再上跑道";
+  } else if (ratioAvg > 1.45) {
+    title = "高抬腿跨栏战神";
+    trait = "大腿过于修长，跑步如跳秧歌";
+    grade = "SSR 奇行异兽";
+    docComment = "步幅突破天际，但极易当场闪到腰";
+  } else if (ratioAvg < 0.75) {
+    title = "超高频短腿缝纫机";
+    trait = "小腿疯狂倒腾，动能转化率成谜";
+    grade = "SSR 抽搐旋风";
+    docComment = "步频高达八百，位移可能完全靠震动";
+  } else if (lenAvg > 175) {
+    title = "踩高跷超进化体";
+    trait = "顶天立地，视野开阔但风阻巨大";
+    grade = "SSR 巨型牛马";
+    docComment = "重心过高，冲线时容易刹不住车";
+  } else {
+    title = "1.05:1 黄金比例马";
+    trait = "疑似画画前偷偷翻阅了生物力学论文";
+    grade = "UR 跑道刺客";
+    docComment = "在一众抽象神金生物中显得过于端庄";
+  }
+
+  return { title, trait, grade, docComment };
+}
 
 // ---------- 音效（WebAudio 合成，无需音频文件） ----------
 function fanfare() {
@@ -142,16 +190,30 @@ export function BirthScreen({ demo = false }: { demo?: boolean }) {
     if (!demo) sendDone();
   };
 
+  const appraisal = getAppraisal(model);
+
   return (
     <div className="screen birth">
       <div ref={stageRef} className="birth-stage3d">
         <canvas ref={canvasRef} className="birth-canvas3d" />
         <canvas ref={confRef} className="birth-confetti" />
-        <div className="birth-text">🎉 你的小马诞生了！</div>
+        <div className="birth-text">⚡ 你的抽象小马降生了！⚡</div>
       </div>
-      <p className="hint">拖拽可 360° 观察</p>
-      <p className="birth-timer">{remain > 0 ? `${remain}s 后可进入比赛` : "可以进入比赛了！"}</p>
-      <button className="primary" disabled={!canEnter} onClick={finish}>进入比赛 →</button>
+      <p className="hint">🖱️ 拖拽舞台可 360° 全方位品鉴抽象工艺</p>
+
+      {appraisal && (
+        <div className="appraisal-card">
+          <div className="appraisal-header">
+            <span className="appraisal-title">📋 赛博物种鉴定：{appraisal.title}</span>
+            <span className="appraisal-grade">{appraisal.grade}</span>
+          </div>
+          <div className="appraisal-row"><b>体态特质：</b>{appraisal.trait}</div>
+          <div className="appraisal-row"><b>物理鉴定：</b>{appraisal.docComment}</div>
+        </div>
+      )}
+
+      <p className="birth-timer">{remain > 0 ? `战马检阅中… ${remain}s 后可起跑` : "随时可以进入跑道发癫！"}</p>
+      <button className="primary" disabled={!canEnter} onClick={finish}>放马开跑 🚀</button>
     </div>
   );
 }
