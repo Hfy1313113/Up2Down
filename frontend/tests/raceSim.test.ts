@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Recognize } from "../src/game/recognize";
 import { createRace, ranking, TRACK_LEN, updateRace } from "../src/game/raceSim";
-import { synthParts } from "./synth";
+import { synthParts } from "../src/game/synth";
 
 function modelOf(ratio: number, legLen = 150) {
   return Recognize.analyzeParts(synthParts({ ratio, legLen }));

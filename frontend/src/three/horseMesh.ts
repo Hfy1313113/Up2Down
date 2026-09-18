@@ -1,0 +1,175 @@
+// horseMesh.ts —— 由识别模型生成 3D 马（THREE.Group），Birth 与 Race 共用。
+// 连杆动画：每帧按 gait.ts 的 computePose 得到 thigh/fold 角度，
+// 大腿绕髋旋转、小腿相对膝盖旋转（与 legPoints 前向运动学一致）。
+import * as THREE from "three";
+import { computePose } from "../game/gait";
+import type { HorseModel, LegModel, Pose } from "../game/types";
+
+// 模型本地坐标（躯干 120 单位）→ 世界尺度
+export const WORLD_SCALE = 0.02;
+
+export interface HorseRig {
+  group: THREE.Group;
+  setPose(pose: Pose): void;
+  /** 头部世界锚点（本地坐标，未乘 group 变换） */
+  headLocal: THREE.Vector3;
+  dispose(): void;
+}
+
+function mat(color: string): THREE.MeshStandardMaterial {
+  return new THREE.MeshStandardMaterial({ color, roughness: 0.85, metalness: 0 });
+}
+
+function shade(hex: string, f: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  const r = Math.min(255, ((n >> 16) & 255) * f) | 0;
+  const g = Math.min(255, ((n >> 8) & 255) * f) | 0;
+  const b = Math.min(255, (n & 255) * f) | 0;
+  return `rgb(${r},${g},${b})`;
+}
+
+// 一条腿：hipGroup(髋) → 大腿 mesh + kneeGroup(膝) → 小腿 mesh + 蹄
+interface LegRig {
+  hipGroup: THREE.Group;
+  kneeGroup: THREE.Group;
+  dir: 1 | -1;   // hind=-1(前收)/fore=1，与 legPoints 的 dir 一致
+}
+
+function buildLeg(leg: LegModel, color: string): { root: THREE.Group; rig: LegRig } {
+  const dir = (leg.type === "hind" ? -1 : 1) as 1 | -1;
+  const hipGroup = new THREE.Group();
+  hipGroup.position.set(leg.hip[0], leg.hip[1], 0);
+
+  const thighGeo = new THREE.CylinderGeometry(4.2, 3.4, leg.L1, 10);
+  thighGeo.translate(0, -leg.L1 / 2, 0);   // 顶端对齐髋，向下伸
+  const thigh = new THREE.Mesh(thighGeo, mat(color));
+  hipGroup.add(thigh);
+
+  const kneeGroup = new THREE.Group();
+  kneeGroup.position.set(0, -leg.L1, 0);
+  const shinGeo = new THREE.CylinderGeometry(3.0, 2.2, leg.L2, 10);
+  shinGeo.translate(0, -leg.L2 / 2, 0);
+  const shin = new THREE.Mesh(shinGeo, mat(shade(color, 0.85)));
+  kneeGroup.add(shin);
+
+  const hoofGeo = new THREE.CylinderGeometry(3.4, 3.8, 5, 10);
+  hoofGeo.translate(0, -leg.L2 - 2, 0);
+  const hoof = new THREE.Mesh(hoofGeo, mat("#3a2e26"));
+  kneeGroup.add(hoof);
+
+  hipGroup.add(kneeGroup);
+  return { root: hipGroup, rig: { hipGroup, kneeGroup, dir } };
+}
+
+export function buildHorse(model: HorseModel, color: string): HorseRig {
+  const T = model.torso;
+  const dark = shade(color, 0.72);
+  const darker = shade(color, 0.5);
+  const group = new THREE.Group();
+  const disposables: { dispose(): void }[] = [];
+
+  const track = <T extends { dispose(): void }>(x: T): T => { disposables.push(x); return x; };
+
+  // ---- 躯干（胶囊，沿 x）----
+  const radius = T.thick / 2;
+  const torsoGeo = track(new THREE.CapsuleGeometry(radius, T.len - radius * 2, 6, 14));
+  const torso = new THREE.Mesh(torsoGeo, mat(color));
+  torso.rotation.z = Math.PI / 2;
+  torso.position.set(T.cx, T.cy, 0);
+  group.add(torso);
+
+  // ---- 脖子 + 头 ----
+  const H = model.head;
+  const neckBase = new THREE.Vector3(T.cx + T.len * 0.38, T.cy + T.thick * 0.28, 0);
+  const neckEnd = new THREE.Vector3(H.neckX, H.neckY, 0);
+  const neckDir = neckEnd.clone().sub(neckBase);
+  const neckGeo = track(new THREE.CylinderGeometry(T.thick * 0.26, T.thick * 0.34, neckDir.length(), 10));
+  const neck = new THREE.Mesh(neckGeo, mat(color));
+  neck.position.copy(neckBase.clone().add(neckEnd).multiplyScalar(0.5));
+  neck.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), neckDir.clone().normalize());
+  group.add(neck);
+
+  const headGeo = track(new THREE.SphereGeometry(H.size * 0.55, 14, 10));
+  headGeo.scale(1.35, 0.8, 0.8);
+  const head = new THREE.Mesh(headGeo, mat(color));
+  head.position.set(H.x, H.y, 0);
+  head.rotation.z = 0.35;
+  group.add(head);
+  // 吻部
+  const muzzleGeo = track(new THREE.SphereGeometry(H.size * 0.3, 10, 8));
+  muzzleGeo.scale(1.4, 0.9, 0.9);
+  const muzzle = new THREE.Mesh(muzzleGeo, mat(darker));
+  muzzle.position.set(H.x + H.size * 0.55, H.y - H.size * 0.15, 0);
+  group.add(muzzle);
+  // 双耳
+  for (const s of [-1, 1]) {
+    const earGeo = track(new THREE.ConeGeometry(2.6, H.size * 0.5, 6));
+    const ear = new THREE.Mesh(earGeo, mat(dark));
+    ear.position.set(H.x - H.size * 0.15, H.y + H.size * 0.5, s * 3.5);
+    ear.rotation.z = -0.15;
+    group.add(ear);
+  }
+  // 双眼
+  const eyeGeo = track(new THREE.SphereGeometry(1.6, 8, 6));
+  const eyeMat = track(new THREE.MeshStandardMaterial({ color: "#222", roughness: 0.4 }));
+  for (const s of [-1, 1]) {
+    const eye = new THREE.Mesh(eyeGeo, eyeMat);
+    eye.position.set(H.x + H.size * 0.25, H.y + H.size * 0.12, s * H.size * 0.4);
+    group.add(eye);
+  }
+
+  // ---- 四条腿 ----
+  const legRoots: THREE.Group[] = [];
+  const legRigs: LegRig[] = [];
+  model.legs.forEach((leg, i) => {
+    const { root, rig } = buildLeg(leg, i % 2 ? color : dark);
+    root.position.z = i % 2 ? 5.5 : -5.5;   // 近/远侧
+    group.add(root);
+    legRoots.push(root);
+    legRigs.push(rig);
+    disposables.push((root.children[0] as THREE.Mesh).geometry,
+      ((root.children[0] as THREE.Mesh).material as THREE.Material),
+      (rig.kneeGroup.children[0] as THREE.Mesh).geometry,
+      (rig.kneeGroup.children[0] as THREE.Mesh).material as THREE.Material,
+      (rig.kneeGroup.children[1] as THREE.Mesh).geometry,
+      (rig.kneeGroup.children[1] as THREE.Mesh).material as THREE.Material);
+  });
+
+  // ---- 尾巴 ----
+  const tailGeo = track(new THREE.CylinderGeometry(2.2, 1.0, T.thick * 1.6, 8));
+  tailGeo.translate(0, -T.thick * 0.8, 0);
+  const tail = new THREE.Mesh(tailGeo, mat(darker));
+  tail.position.set(T.cx - T.len * 0.5, T.cy + T.thick * 0.1, 0);
+  tail.rotation.z = -0.7;
+  group.add(tail);
+
+  const headLocal = new THREE.Vector3(H.x, H.y + H.size * 0.2, 0);
+
+  function setPose(pose: Pose) {
+    legRigs.forEach((rig, i) => {
+      const pl = pose.legs[i];
+      if (!pl) return;
+      rig.hipGroup.rotation.z = pl.thigh;             // 与 legPoints: knee = hip + L1(sin th, -cos th)
+      rig.kneeGroup.rotation.z = rig.dir * pl.fold;   // 小腿相对折叠
+    });
+    group.rotation.z = pose.pitch;
+    // pose.bob 是模型本地单位，需换算到父级世界尺度
+    group.position.y = pose.bob * group.scale.y;
+  }
+
+  return {
+    group, setPose, headLocal,
+    dispose() {
+      disposables.forEach(d => d.dispose());
+      group.traverse(o => {
+        if (o instanceof THREE.Mesh) {
+          o.geometry.dispose();
+          const m = o.material as THREE.Material | THREE.Material[];
+          Array.isArray(m) ? m.forEach(x => x.dispose()) : m.dispose();
+        }
+      });
+    },
+  };
+}
+
+export { computePose };

@@ -1,5 +1,5 @@
 // synth.ts —— 分部位合成笔画测试数据生成器（移植自 frontend-legacy/harness.html 的 synthParts）
-import type { PartStrokes, Stroke, Vec2 } from "../src/game/types";
+import type { PartStrokes, Stroke, Vec2 } from "./types";
 
 interface SynthOptions {
   legLen?: number;   // 腿总长

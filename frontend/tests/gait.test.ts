@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Recognize } from "../src/game/recognize";
 import { GAIT_OFFSETS, THIGH_AMP, computePose, legPoints } from "../src/game/gait";
-import { synthParts } from "./synth";
+import { synthParts } from "../src/game/synth";
 
 describe("gait 步态", () => {
   const model = Recognize.analyzeParts(synthParts());

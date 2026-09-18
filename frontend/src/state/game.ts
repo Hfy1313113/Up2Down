@@ -152,6 +152,11 @@ export function enterRace(msg: NetMessage): void {
   setState({ phase: "race", horses: entries });
 }
 
+// ---------- dev-only：demo 模式直接灌入赛跑状态 ----------
+export function loadDemoRace(entries: HorseEntry[]): void {
+  setState({ phase: "race", horses: entries });
+}
+
 // ---------- 网络消息注册（App 启动时调用一次） ----------
 let wired = false;
 export function wireTransport(): void {

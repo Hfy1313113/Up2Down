@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Recognize } from "../src/game/recognize";
-import { synthParts } from "./synth";
+import { synthParts } from "../src/game/synth";
 
 describe("Recognize.analyzeParts", () => {
   it("合成标准笔画 → 4 条腿，每条有 hip/knee/thigh(=L1)/shin(=L2)/foot", () => {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Recognize } from "../src/game/recognize";
 import { computeMetrics } from "../src/game/metrics";
-import { synthParts } from "./synth";
+import { synthParts } from "../src/game/synth";
 
 describe("computeMetrics 速度公式", () => {
   it("大腿:小腿 = 1.05 附近速度最优", () => {

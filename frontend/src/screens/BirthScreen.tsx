@@ -1,8 +1,7 @@
-// BirthScreen.tsx —— 小马诞生仪式（复刻 birth.js）：
-// 旋转放大登场（CSS 3D）、喷射彩带、WebAudio 合成音效、360° 拖拽观察、15s 倒计时后发 done。
+// BirthScreen.tsx —— 小马诞生仪式（three.js 版）：
+// 3D 旋转放大登场、Pointer 拖拽 360°、彩带 canvas 叠加、WebAudio 合成音效、15s 倒计时后发 done。
 import { useEffect, useRef, useState } from "react";
-import { computePose } from "../game/gait";
-import { drawHorse } from "../game/horseDraw";
+import { BirthScene } from "../three/birthScene";
 import { useGame, sendDone } from "../state/game";
 import { COLORS } from "../game/raceSim";
 
@@ -45,7 +44,7 @@ function fanfare() {
   } catch { /* 音频不可用时静默 */ }
 }
 
-// ---------- 彩带 ----------
+// ---------- 彩带（2D canvas 叠加在 3D 舞台上） ----------
 interface ConfettiPart {
   x: number; y: number; vx: number; vy: number; g: number;
   w: number; h: number; rot: number; vr: number; color: string;
@@ -93,9 +92,9 @@ function startConfetti(canvas: HTMLCanvasElement): () => void {
   return () => cancelAnimationFrame(raf);
 }
 
-export function BirthScreen() {
+export function BirthScreen({ demo = false }: { demo?: boolean }) {
   const g = useGame();
-  const flipRef = useRef<HTMLDivElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const confRef = useRef<HTMLCanvasElement>(null);
   const [remain, setRemain] = useState(OBSERVE_SECONDS);
@@ -106,25 +105,27 @@ export function BirthScreen() {
   const color = COLORS[myIndex % COLORS.length];
   const model = g.myModel!;
 
-  // 马画到透明画布 + 登场动画 + 音效 + 彩带
   useEffect(() => {
-    const cv = canvasRef.current!;
-    const cctx = cv.getContext("2d")!;
-    cctx.clearRect(0, 0, cv.width, cv.height);
-    const pose = computePose(model, 0.18);
-    drawHorse(cctx, model, pose, cv.width / 2, cv.height * 0.82, 1.15, color,
-      { phase: 0.18, showJoints: true, jointColor: "#ffe27a" });
+    const canvas = canvasRef.current!;
+    const scene = new BirthScene(canvas, model, color);
+    scene.attachDrag(stageRef.current!);
+    const onResize = () => scene.resize();
+    window.addEventListener("resize", onResize);
 
     fanfare();
     const confCv = confRef.current!;
     confCv.width = confCv.clientWidth;
     confCv.height = confCv.clientHeight;
     const stopConfetti = startConfetti(confCv);
-    return stopConfetti;
+
+    return () => {
+      window.removeEventListener("resize", onResize);
+      stopConfetti();
+      scene.dispose();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 15s 倒计时
   useEffect(() => {
     const iv = setInterval(() => {
       setRemain(r => {
@@ -135,47 +136,19 @@ export function BirthScreen() {
     return () => clearInterval(iv);
   }, []);
 
-  // 拖拽 360° 观察（CSS 3D）
-  useEffect(() => {
-    const stage = document.getElementById("birth-stage");
-    const flip = flipRef.current;
-    if (!stage || !flip) return;
-    let dragging = false, lx = 0, ly = 0, ry = 0, rx = 0;
-    const down = (e: PointerEvent) => { dragging = true; lx = e.clientX; ly = e.clientY; };
-    const move = (e: PointerEvent) => {
-      if (!dragging) return;
-      ry += (e.clientX - lx) * 0.5;
-      rx = Math.max(-30, Math.min(30, rx - (e.clientY - ly) * 0.3));
-      lx = e.clientX; ly = e.clientY;
-      flip.style.animation = "none";
-      flip.style.transform = `rotateX(${rx}deg) rotateY(${ry}deg)`;
-    };
-    const up = () => { dragging = false; };
-    stage.addEventListener("pointerdown", down);
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
-    return () => {
-      stage.removeEventListener("pointerdown", down);
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-    };
-  }, []);
-
   const finish = () => {
     if (finishedRef.current) return;
     finishedRef.current = true;
-    sendDone();
+    if (!demo) sendDone();
   };
 
   return (
     <div className="screen birth">
-      <div id="birth-stage" className="birth-stage">
-        <div ref={flipRef} className="birth-flip">
-          <div className="birth-text">🎉 你的小马诞生了！</div>
-          <canvas ref={canvasRef} width={560} height={460} className="birth-canvas" />
-        </div>
+      <div ref={stageRef} className="birth-stage3d">
+        <canvas ref={canvasRef} className="birth-canvas3d" />
+        <canvas ref={confRef} className="birth-confetti" />
+        <div className="birth-text">🎉 你的小马诞生了！</div>
       </div>
-      <canvas ref={confRef} className="birth-confetti" />
       <p className="hint">拖拽可 360° 观察</p>
       <p className="birth-timer">{remain > 0 ? `${remain}s 后可进入比赛` : "可以进入比赛了！"}</p>
       <button className="primary" disabled={!canEnter} onClick={finish}>进入比赛 →</button>
