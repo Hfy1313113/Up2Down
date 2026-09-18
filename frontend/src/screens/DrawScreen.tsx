@@ -2,7 +2,7 @@
 // 三部位完成后本地 Recognize.analyzeParts 并提交 done，进入等待屏。
 import { useEffect, useRef, useState } from "react";
 import { Recognize } from "../game/recognize";
-import { useGame, finishCurrentPart as finishPartState, submitDrawing } from "../state/game";
+import { useGame, finishCurrentPart as finishPartState, prepareBirth } from "../state/game";
 import { LOGICAL_W, LOGICAL_H, PARTS, PART_LABEL, useDrawCanvas, type Part } from "./useDrawCanvas";
 
 const PART_HINTS: Record<Part, string> = {
@@ -39,7 +39,7 @@ export function DrawScreen() {
   const doSubmit = () => {
     const strokes = d.collectAll();
     const model = Recognize.analyzeParts(strokes);
-    submitDrawing(strokes, model);
+    prepareBirth(strokes, model);   // 先本端诞生仪式，结束后发 done
   };
 
   const onPreview = (v: boolean) => { setPreview(v); d.setPreview(v); };

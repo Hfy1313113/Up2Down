@@ -3,9 +3,10 @@
 import { useSyncExternalStore } from "react";
 import { transport } from "../net/transport";
 import type { NetMessage } from "../net/transport";
+import { Recognize } from "../game/recognize";
 import type { HorseModel, PartStrokes } from "../game/types";
 
-export type Phase = "lobby" | "draw" | "waiting" | "race";
+export type Phase = "lobby" | "draw" | "birth" | "waiting" | "race";
 
 export interface PlayerInfo {
   id: string;
@@ -36,7 +37,6 @@ interface GameState {
 }
 
 const PART_SECONDS = 50;
-const RACE_TIMEOUT_MS = 200_000;
 
 let state: GameState = {
   phase: "lobby", myName: "", myId: null, room: null, host: null,
@@ -61,7 +61,6 @@ export const isHost = () => state.host != null && state.host === transport.id;
 const hostOf = (players: PlayerInfo[]) => players.find(p => p.id === transport.id) != null;
 
 let partTimer: ReturnType<typeof setInterval> | null = null;
-let raceTimer: ReturnType<typeof setTimeout> | null = null;
 
 // ---------- 大厅 ----------
 export async function join(name: string, room: string): Promise<void> {
@@ -84,7 +83,6 @@ export function startGame(): void {
 // ---------- 绘制阶段 ----------
 export function enterDrawPhase(): void {
   clearInterval(partTimer!);
-  clearTimeout(raceTimer!);
   setState({ phase: "draw", doneNames: [], currentPart: "legs", partLeft: PART_SECONDS });
   startPartTimer();
 }
@@ -111,18 +109,17 @@ export function finishCurrentPart(): string | null {
 }
 
 // ---------- 提交与房主协调 ----------
-export function submitDrawing(strokes: PartStrokes, model: HorseModel): void {
+// 画完三部位：本地识别 → 进入诞生仪式（本端先观赏自己的马）
+export function prepareBirth(strokes: PartStrokes, model: HorseModel): void {
   clearInterval(partTimer!);
-  setState({ myStrokes: strokes, myModel: model, phase: "waiting" });
-  transport.send({ t: "done", strokes });
-
-  // 房主兜底：200s 超时仍未全员提交 → 直接开赛
-  if (isHost()) scheduleRaceStart();
+  setState({ myStrokes: strokes, myModel: model, phase: "birth" });
 }
 
-export function scheduleRaceStart(): void {
-  clearTimeout(raceTimer!);
-  raceTimer = setTimeout(() => broadcastRace(), RACE_TIMEOUT_MS);
+// 诞生仪式结束 → 提交画作，等待其他玩家
+export function sendDone(): void {
+  if (!state.myStrokes) return;
+  transport.send({ t: "done", strokes: state.myStrokes });
+  setState({ phase: "waiting" });
 }
 
 export function maybeStartRace(): void {
@@ -133,31 +130,26 @@ export function maybeStartRace(): void {
   }
 }
 
+// 全员已提交 → 房主立即开赛（服务端仍会补全/兜底超时）
 function broadcastRace(): void {
-  clearTimeout(raceTimer!);
-  // 未提交者 strokes 为空（server 端 done 状态里也没有，统一按空处理）
   const horses = state.players.map(p => ({
-    id: p.id,
-    name: p.name,
-    strokes: p.id === transport.id ? (state.myStrokes ?? emptyStrokes())
-              : p.done ? undefined : emptyStrokes(),
+    id: p.id, name: p.name, strokes: null,
   }));
   transport.send({ t: "race", horses });
   enterRace({ t: "race", horses } as NetMessage);
 }
 
-const emptyStrokes = (): PartStrokes => ({ legs: [], head: [], butt: [] });
 
-// ---------- 赛跑（本步占位：进入即显示名单） ----------
+// ---------- 赛跑 ----------
 export function enterRace(msg: NetMessage): void {
   clearInterval(partTimer!);
-  clearTimeout(raceTimer!);
-  const horses = (msg.horses as { id: string; name: string; strokes?: PartStrokes }[]) || [];
-  const entries: HorseEntry[] = horses
-    .filter(h => h.strokes && (h.strokes.legs?.length || h.strokes.head?.length || h.strokes.butt?.length))
-    .map(h => ({ id: h.id, name: h.name, model: null as unknown as HorseModel }));
-  // 具体 Recognize + 渲染在 Step3 赛跑屏实现；本步只保证消息到达与阶段切换
-  setState({ phase: "race", horses: entries.length ? entries : horses.map(h => ({ id: h.id, name: h.name, model: null as unknown as HorseModel })) });
+  const horses = (msg.horses as { id: string; name: string; strokes?: PartStrokes | null }[]) || [];
+  const entries: HorseEntry[] = horses.map(h => {
+    if (h.id === transport.id && state.myModel) return { id: h.id, name: h.name, model: state.myModel };
+    const hasStrokes = h.strokes && (h.strokes.legs?.length || h.strokes.head?.length || h.strokes.butt?.length);
+    return { id: h.id, name: h.name, model: hasStrokes ? Recognize.analyzeParts(h.strokes!) : Recognize.analyzeParts({ legs: [], head: [], butt: [] }) };
+  });
+  setState({ phase: "race", horses: entries });
 }
 
 // ---------- 网络消息注册（App 启动时调用一次） ----------
@@ -207,18 +199,21 @@ function dispatch(inner: NetMessage): void {
   if (inner.t === "draw_phase") enterDrawPhase();
   else if (inner.t === "race") enterRace(inner);
   else if (inner.t === "again") {
-    setState({ phase: "lobby", horses: null, doneNames: [], myStrokes: null, myModel: null });
+    resetRoundState();
   }
+}
+
+function resetRoundState(): void {
+  setState({ phase: "lobby", horses: null, doneNames: [], myStrokes: null, myModel: null });
 }
 
 export function playAgain(): void {
   transport.send({ t: "relay_all", data: { t: "again" } });
-  setState({ phase: "lobby", horses: null, doneNames: [], myStrokes: null, myModel: null });
+  resetRoundState();
 }
 
 export function resetToLobby(error?: string): void {
   clearInterval(partTimer!);
-  clearTimeout(raceTimer!);
   transport.close();
   setState({
     phase: "lobby", room: null, host: null, players: [], doneNames: [],

@@ -59,3 +59,39 @@ button.primary { background: #59b56b; }
 .draw-tools button.primary { background: #59b56b; }
 .chk { display: flex; gap: 6px; align-items: center; }
 .draw-status { color: #59a06b; }
+
+/* ---- 诞生仪式 ---- */
+.birth { position: relative; overflow: hidden; }
+.birth-stage { perspective: 900px; min-height: 480px; display: flex; align-items: center; justify-content: center; cursor: grab; }
+.birth-stage:active { cursor: grabbing; }
+.birth-flip { transform-style: preserve-3d; animation: birth-spin 4s ease-out; }
+@keyframes birth-spin {
+  from { transform: rotateY(360deg) scale(0.2); opacity: 0; }
+  to { transform: rotateY(0deg) scale(1); opacity: 1; }
+}
+.birth-text { font-size: 28px; font-weight: bold; color: #e2703a; animation: birth-text-pop 1s ease-out; }
+@keyframes birth-text-pop { from { transform: scale(0); } to { transform: scale(1); } }
+.birth-canvas { background: transparent; }
+.birth-confetti { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.birth-timer { color: #7a93a8; }
+
+/* ---- 赛跑 ---- */
+.race-wrap { position: fixed; inset: 0; }
+.race-canvas { width: 100vw; height: 100vh; display: block; }
+.race-countdown {
+  position: absolute; top: 38%; left: 50%; transform: translate(-50%, -50%);
+  font-size: 96px; font-weight: bold; color: #e2703a;
+  text-shadow: 0 4px 16px rgba(255,255,255,.8);
+  animation: cd-pop .8s ease-out;
+}
+@keyframes cd-pop { from { transform: translate(-50%, -50%) scale(1.6); opacity: 0; } to { transform: translate(-50%, -50%) scale(1); opacity: 1; } }
+.race-view-btns { position: absolute; top: 12px; right: 12px; display: flex; gap: 8px; }
+.race-view-btns button { background: rgba(51,71,91,.75); }
+.race-view-btns button.active { background: #e2703a; }
+.race-banner {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  background: rgba(255,255,255,.95); border-radius: 16px; padding: 24px 40px;
+  box-shadow: 0 8px 30px rgba(30,60,90,.3); text-align: center;
+}
+.race-banner ol { list-style: none; padding: 0; text-align: left; margin: 12px 0; }
+.race-banner li { padding: 4px 0; }
