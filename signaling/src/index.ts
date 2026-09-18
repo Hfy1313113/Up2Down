@@ -18,6 +18,8 @@ interface RoomState {
 
 const encoder = new TextEncoder();
 
+const DRAW_TIMEOUT_MS = 200_000;   // 绘制阶段总时限，到点服务端自动开赛
+
 function send(ws: WebSocket, obj: unknown) {
   try { ws.send(JSON.stringify(obj)); } catch { /* closed */ }
 }
@@ -43,10 +45,47 @@ export class Room {
   state: DurableObjectState;
   code = "";
   roomState: RoomState;
+  raceDeadline: number | null = null;   // 绘制阶段截止（epoch ms）
+  raceStarted = false;
 
   constructor(state: DurableObjectState) {
     this.state = state;
     this.roomState = { players: new Map(), hostId: null, seq: 0 };
+  }
+
+  // 进入绘制阶段：服务端计时，到点未开赛则由 alarm 自动开赛（房主断线也安全）
+  private beginDrawPhase(timeoutMs: number) {
+    this.raceDeadline = Date.now() + timeoutMs;
+    this.raceStarted = false;
+    this.state.storage.setAlarm(this.raceDeadline);
+  }
+
+  private cancelRaceTimer() {
+    this.raceDeadline = null;
+    this.state.storage.deleteAlarm();
+  }
+
+  // 构建 race 消息：全员上榜，未提交者 strokes=null
+  private buildRaceMsg() {
+    const rs = this.roomState;
+    return {
+      t: "race",
+      horses: [...rs.players.values()].map(p => ({
+        id: p.pid, name: p.name,
+        strokes: p.done ? p.strokes : null,
+      })),
+    };
+  }
+
+  async alarm(): Promise<void> {
+    if (this.raceDeadline == null || this.raceStarted) return;
+    if (Date.now() < this.raceDeadline) {   // 防御：提前唤醒则重新定
+      this.state.storage.setAlarm(this.raceDeadline);
+      return;
+    }
+    this.raceStarted = true;
+    this.cancelRaceTimer();
+    broadcast(this.roomState, this.buildRaceMsg());
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -113,15 +152,23 @@ export class Room {
         }
         case "relay_all": {
           broadcast(rs, { ...msg, from: pid }, ws);
+          // 房主经兜底通道广播 draw_phase = 绘制阶段开始 → 服务端计时
+          if (msg.data?.t === "draw_phase") this.beginDrawPhase(msg.data.timeoutMs ?? DRAW_TIMEOUT_MS);
           break;
         }
-        // 房主协调消息原样广播；race 由服务端补全各玩家已存的 strokes（房主只知自己的）
         default: {
-          if (msg.t === "race" && Array.isArray(msg.horses)) {
-            msg.horses = msg.horses.map((h: any) => {
-              const p = rs.players.get(String(h.id));
-              return { ...h, strokes: p?.done ? p.strokes : (h.strokes ?? null) };
-            });
+          if (msg.t === "start") this.beginDrawPhase(DRAW_TIMEOUT_MS);
+          if (msg.t === "again") { this.raceStarted = false; this.cancelRaceTimer(); }
+          if (msg.t === "race") {
+            // 房主已开赛：标记并取消服务端超时
+            this.raceStarted = true;
+            this.cancelRaceTimer();
+            if (Array.isArray(msg.horses)) {
+              msg.horses = msg.horses.map((h: any) => {
+                const p = rs.players.get(String(h.id));
+                return { ...h, strokes: p?.done ? p.strokes : (h.strokes ?? null) };
+              });
+            }
           }
           broadcast(rs, { ...msg, from: pid }, ws);
         }
