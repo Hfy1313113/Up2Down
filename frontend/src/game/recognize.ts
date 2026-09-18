@@ -1,6 +1,6 @@
 /* recognize.ts —— 马形识别：从手绘笔画中定位躯干与四条腿，
    并把每条腿转化为「髋关节 + 膝关节」双关节连杆模型。
-   纯函数移植自 frontend-legacy/js/recognize.js，无 DOM 依赖。 */
+   纯函数实现，无 DOM 依赖。 */
 import type { HorseModel, PartStrokes, RawStroke, Stroke, Vec2 } from "./types";
 
 // ---------- 基础几何 ----------

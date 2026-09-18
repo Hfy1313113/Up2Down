@@ -25,7 +25,7 @@
 如果任务涉及某个二级核心模块，Agent 必须阅读该模块目录文档，以 `**/docs/README.md` 和 `**/docs/ARCHITECTURE.md` 为主，例如：
 
 - 前端任务：阅读 `**/frontend/docs/README.md`、`**/frontend/docs/ARCHITECTURE.md`
-- 后端任务：阅读 `**/backend/docs/README.md`、`**/backend/docs/ARCHITECTURE.md`
+- 控制面任务：阅读 `**/signaling/docs/README.md`、`**/signaling/docs/ARCHITECTURE.md`
 - 其他任务同理
 
 如任务涉及模块启动、环境变量、脚本或部署，还必须阅读该模块的：

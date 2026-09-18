@@ -2,9 +2,12 @@ name = "up2down-signaling"
 main = "src/index.ts"
 compatibility_date = "2026-09-01"
 
-[ durable_objects ]
+# Durable Object 房间（每房间一个实例）
+[durable_objects]
 bindings = [{ name = "ROOM", class_name = "Room" }]
 
-[[ migrations ]]
+# 免费方案只支持 SQLite 存储后端的 Durable Object，故使用 new_sqlite_classes。
+# 迁移 tag 一经部署不可修改；后续若要新增 DO 类，追加新的 [[migrations]] 条目。
+[[migrations]]
 tag = "v1"
-new_classes = ["Room"]
+new_sqlite_classes = ["Room"]

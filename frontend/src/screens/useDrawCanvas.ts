@@ -1,4 +1,4 @@
-// useDrawCanvas.ts —— 分部位手绘画布 Hook（移植自 frontend-legacy/js/draw.js）：
+// useDrawCanvas.ts —— 分部位手绘画布 Hook：
 // 腿部 / 头部 / 屁股 各自独立笔画、撤销与清空；躯干自动生成无需绘制。
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Recognize } from "../game/recognize";

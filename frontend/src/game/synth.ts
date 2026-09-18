@@ -1,4 +1,4 @@
-// synth.ts —— 分部位合成笔画测试数据生成器（移植自 frontend-legacy/harness.html 的 synthParts）
+// synth.ts —— 分部位合成笔画数据生成器（供单测与 ?demo= 目视验证入口使用）
 import type { PartStrokes, Stroke, Vec2 } from "./types";
 
 interface SynthOptions {

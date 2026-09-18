@@ -1,4 +1,4 @@
-/* metrics.ts —— 速度公式（纯函数移植自 frontend-legacy/js/race.js 的 computeMetrics）。
+/* metrics.ts —— 速度公式（纯函数）。
    速度完全由玩家绘制的腿长几何决定：
      步幅 ∝ 腿长（大腿+小腿）× 摆幅
      步频 ∝ 1/√腿长（现实规律：腿越短倒腾越快）
