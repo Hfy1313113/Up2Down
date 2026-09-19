@@ -1,20 +1,46 @@
 // raceSim.ts —— 赛跑模拟的纯逻辑核心（可单测，无 DOM 依赖）：
 // 每匹马速度由 computeMetrics 决定，位移确定性积分；名次按冲线时间/距离排名。
+// 支持用户连点屏幕加速（带上限）、物理交互（拌腿、冲撞、美式截停、创飞）。
 import { computeMetrics } from "./metrics";
 import type { HorseModel } from "./types";
 
 export const TRACK_LEN = 2600;            // 赛道长度（世界像素）
 export const COLORS = ["#e2604f", "#4d8de2", "#59b56b", "#e8a13c"];
 
+export const MAX_BOOST = 1.6;             // 最高加速倍率 (+60%)
+export const BOOST_DECAY = 1.8;           // 连点增益每秒自然衰减
+export const TAP_IMPULSE = 0.35;          // 单次点击激发的加速脉冲
+export const MAX_TAP_INTENSITY = 2.5;     // 连点强度上限
+
+export type InteractionType = "bump" | "trip" | "pit" | "launch";
+
 export interface Runner {
   id: string;
   name: string;
   model: HorseModel;
   color: string;
-  speed: number;       // 像素/秒
-  period: number;      // 步态周期（秒）
+  speed: number;            // 基础像素/秒
+  effectiveSpeed: number;   // 结合加速与物理阻尼后的实际速度
+  period: number;           // 步态周期（秒）
   x: number;
-  phase: number;       // ∈ [0,1)
+  baseZ: number;            // 预设基准赛道位置
+  z: number;                // 实际横向世界坐标
+  vz: number;               // 横向速度
+  y: number;                // 垂直弹跳/创飞高度
+  vy: number;               // 垂直速度
+  rotX: number;             // 俯仰角偏移（前倾绊倒）
+  rotY: number;             // 航向角偏移（美式截停打转甩尾）
+  rotZ: number;             // 滚转角偏移（冲撞侧倾/空中翻滚）
+  boost: number;            // 当前加速倍率 [1.0, MAX_BOOST]
+  tapIntensity: number;     // 连点激烈程度 (0 ~ MAX_TAP_INTENSITY)
+  whipIntensity: number;    // 挥鞭强度 (0 ~ 1.0)
+  stumbleTimer: number;     // 拌腿硬直剩余时间
+  spinTimer: number;        // 美式截停打转硬直
+  launchedTimer: number;    // 被创飞浮空状态
+  cooldownTimer: number;    // 碰撞免疫冷却时间
+  interactionText: string | null;  // 碰撞浮动文案（"创飞！", "美式截停！", 等）
+  interactionTimer: number;
+  phase: number;            // ∈ [0,1)
   finished: boolean;
   finishTime: number | null;
 }
@@ -26,38 +52,258 @@ export interface RaceState {
 }
 
 export function createRace(entries: { id: string; name: string; model: HorseModel }[]): RaceState {
+  const count = entries.length;
   return {
     time: 0,
     over: false,
     runners: entries.map((e, i) => {
       const m = computeMetrics(e.model);
+      const baseZ = (i - (count - 1) / 2) * 4;
       return {
         id: e.id, name: e.name, model: e.model,
         color: COLORS[i % COLORS.length],
-        speed: m.speed, period: 1 / m.cadence,
-        x: 0, phase: 0, finished: false, finishTime: null,
+        speed: m.speed,
+        effectiveSpeed: m.speed,
+        period: 1 / m.cadence,
+        x: 0,
+        baseZ,
+        z: baseZ,
+        vz: 0,
+        y: 0,
+        vy: 0,
+        rotX: 0,
+        rotY: 0,
+        rotZ: 0,
+        boost: 1.0,
+        tapIntensity: 0,
+        whipIntensity: 0,
+        stumbleTimer: 0,
+        spinTimer: 0,
+        launchedTimer: 0,
+        cooldownTimer: 0,
+        interactionText: null,
+        interactionTimer: 0,
+        phase: 0,
+        finished: false,
+        finishTime: null,
       };
     }),
   };
 }
 
-// 推进一帧。确定性：给定相同 entries 与相同 dt 序列，结果必然一致。
+// 玩家点击屏幕或按下空格：注入连点冲量
+export function applyTapBoost(state: RaceState, runnerId: string): RaceState {
+  const runners = state.runners.map(r => {
+    if (r.id !== runnerId || r.finished) return r;
+    const newIntensity = Math.min(MAX_TAP_INTENSITY, r.tapIntensity + TAP_IMPULSE);
+    const boost = 1.0 + Math.min(MAX_BOOST - 1.0, newIntensity * 0.25);
+    const whipIntensity = Math.min(1.0, newIntensity / 1.4);
+    return {
+      ...r,
+      tapIntensity: newIntensity,
+      boost,
+      whipIntensity,
+    };
+  });
+  return { ...state, runners };
+}
+
+// 网络同步其他玩家的 boost
+export function setRunnerBoost(state: RaceState, runnerId: string, boost: number, whipIntensity?: number): RaceState {
+  const runners = state.runners.map(r => {
+    if (r.id !== runnerId) return r;
+    const clampedBoost = Math.max(1.0, Math.min(MAX_BOOST, boost));
+    return {
+      ...r,
+      boost: clampedBoost,
+      whipIntensity: whipIntensity ?? Math.min(1.0, (clampedBoost - 1.0) / (MAX_BOOST - 1.0)),
+    };
+  });
+  return { ...state, runners };
+}
+
+// 推进一帧。
 export function updateRace(state: RaceState, dt: number): RaceState {
   if (state.over) return state;
   const time = state.time + dt;
   let allDone = true;
   let leaderDone: number | null = null;
-  const runners = state.runners.map(r => {
+
+  // 1. 各 runner 动力学、连点衰减与阻尼更新
+  let runners = state.runners.map(r => {
     if (r.finished) return r;
-    const x = r.x + r.speed * dt;
-    const phase = (r.phase + dt / r.period) % 1;
+
+    // 衰减连点强度与计算当前加速
+    const tapIntensity = Math.max(0, r.tapIntensity - BOOST_DECAY * dt);
+    const calculatedBoost = 1.0 + Math.min(MAX_BOOST - 1.0, tapIntensity * 0.25);
+    const boost = Math.max(r.boost > 1.0 ? Math.max(1.0, r.boost - (BOOST_DECAY * 0.25) * dt) : 1.0, calculatedBoost);
+    const whipIntensity = Math.max(0, r.whipIntensity - BOOST_DECAY * 0.8 * dt);
+
+    // 碰撞/交互计时器递减
+    const stumbleTimer = Math.max(0, r.stumbleTimer - dt);
+    const spinTimer = Math.max(0, r.spinTimer - dt);
+    const launchedTimer = Math.max(0, r.launchedTimer - dt);
+    const cooldownTimer = Math.max(0, r.cooldownTimer - dt);
+    const interactionTimer = Math.max(0, r.interactionTimer - dt);
+    const interactionText = interactionTimer > 0 ? r.interactionText : null;
+
+    // 计算物理状态对速度的减速惩罚
+    let penalty = 1.0;
+    if (stumbleTimer > 0) penalty *= 0.55;    // 绊腿失速
+    if (spinTimer > 0) penalty *= 0.35;       // 美式截停打转失速
+    if (launchedTimer > 0) penalty *= 0.25;   // 空中创飞失速
+
+    const effectiveSpeed = r.speed * boost * penalty;
+    const x = r.x + effectiveSpeed * dt;
+    const phase = (r.phase + (effectiveSpeed / Math.max(1, r.speed)) * (dt / r.period)) % 1;
     const finished = x >= TRACK_LEN;
+
+    // 横向弹簧恢复力（往 baseZ 回归）
+    const spring = (r.baseZ - r.z) * 3.5;
+    let vz = (r.vz + spring * dt) * Math.max(0, 1 - 4 * dt);
+    let z = r.z + vz * dt;
+
+    // 垂直抛射物理（创飞弹跳）
+    let y = r.y;
+    let vy = r.vy;
+    if (y > 0 || vy !== 0) {
+      vy -= 26 * dt; // 重力加速度
+      y += vy * dt;
+      if (y <= 0) {
+        y = 0;
+        vy = 0;
+      }
+    }
+
+    // 旋转物理衰减（恢复平衡）
+    let rotX = r.rotX;
+    let rotY = r.rotY;
+    let rotZ = r.rotZ;
+
+    if (stumbleTimer > 0) {
+      rotX = 0.45 * Math.sin(stumbleTimer * 10);
+    } else {
+      rotX *= Math.max(0, 1 - 6 * dt);
+    }
+
+    if (spinTimer > 0) {
+      rotY += (spinTimer > 0.4 ? 12 : 6) * dt;
+    } else {
+      rotY *= Math.max(0, 1 - 6 * dt);
+    }
+
+    if (launchedTimer > 0) {
+      rotZ += 8 * dt;
+    } else {
+      rotZ *= Math.max(0, 1 - 6 * dt);
+    }
+
     return {
-      ...r, x, phase,
+      ...r,
+      tapIntensity,
+      boost,
+      whipIntensity,
+      stumbleTimer,
+      spinTimer,
+      launchedTimer,
+      cooldownTimer,
+      interactionText,
+      interactionTimer,
+      effectiveSpeed,
+      x,
+      z,
+      vz,
+      y,
+      vy,
+      rotX,
+      rotY,
+      rotZ,
+      phase,
       finished,
       finishTime: finished ? time : null,
     };
   });
+
+  // 2. 两两马匹间的物理交互检测（冲撞、拌腿、美式截停、创飞）
+  const len = runners.length;
+  for (let i = 0; i < len; i++) {
+    for (let j = i + 1; j < len; j++) {
+      const rA = runners[i];
+      const rB = runners[j];
+      if (rA.finished || rB.finished) continue;
+
+      const dx = rA.x - rB.x;
+      const dz = rA.z - rB.z;
+      const absDx = Math.abs(dx);
+      const absDz = Math.abs(dz);
+
+      // 横向距离足够接近，且前后身位相交
+      if (absDz < 3.0 && absDx < 38) {
+        // 判断是否处于冷却期
+        if (rA.cooldownTimer <= 0 && rB.cooldownTimer <= 0) {
+          const rearRunner = dx < 0 ? rA : rB;
+          const frontRunner = dx < 0 ? rB : rA;
+          const relSpeed = rearRunner.effectiveSpeed - frontRunner.effectiveSpeed;
+
+          // 场景 1：创飞 (High-speed ram from behind -> Sent Flying!)
+          if (relSpeed > 45 && absDz < 2.0 && absDx > 10 && absDx < 35) {
+            frontRunner.vy = 13;
+            frontRunner.y = 0.5;
+            frontRunner.launchedTimer = 1.1;
+            frontRunner.vz = (Math.random() - 0.5) * 6;
+            frontRunner.cooldownTimer = 2.0;
+            frontRunner.interactionText = "创飞！💥";
+            frontRunner.interactionTimer = 1.2;
+
+            rearRunner.vz = (rearRunner.z > frontRunner.z ? 1 : -1) * 3;
+            rearRunner.cooldownTimer = 1.5;
+            rearRunner.interactionText = "大创特创！⚡";
+            rearRunner.interactionTimer = 0.8;
+          }
+          // 场景 2：美式截停 (PIT Maneuver - rear quarter contact causes spinout)
+          else if (absDx >= 14 && absDx <= 32 && absDz < 2.4) {
+            const victim = rearRunner;
+            victim.spinTimer = 1.0;
+            victim.vz = (dz > 0 ? -4 : 4);
+            victim.cooldownTimer = 2.0;
+            victim.interactionText = "美式截停！🚨";
+            victim.interactionTimer = 1.1;
+
+            const interceptor = frontRunner;
+            interceptor.cooldownTimer = 1.5;
+            interceptor.interactionText = "截停得手！🎯";
+            interceptor.interactionTimer = 0.8;
+          }
+          // 场景 3：拌腿 (Tangled legs / trip when running close and overlap)
+          else if (absDx < 16 && absDz < 2.0 && frontRunner.y === 0 && rearRunner.y === 0) {
+            rearRunner.stumbleTimer = 0.85;
+            rearRunner.rotX = 0.5;
+            rearRunner.cooldownTimer = 1.8;
+            rearRunner.interactionText = "绊腿了！💫";
+            rearRunner.interactionTimer = 1.0;
+
+            frontRunner.vz = (dz > 0 ? 3 : -3);
+            frontRunner.cooldownTimer = 1.2;
+          }
+          // 场景 4：冲撞 (Side-by-side bumping)
+          else if (absDx < 18 && absDz < 2.6) {
+            const pushDir = dz > 0 ? 1 : -1;
+            rA.vz += pushDir * 4.5;
+            rB.vz -= pushDir * 4.5;
+            rA.rotZ = -pushDir * 0.25;
+            rB.rotZ = pushDir * 0.25;
+            rA.cooldownTimer = 1.0;
+            rB.cooldownTimer = 1.0;
+            rA.interactionText = "冲撞！⚡";
+            rB.interactionText = "冲撞！⚡";
+            rA.interactionTimer = 0.7;
+            rB.interactionTimer = 0.7;
+          }
+        }
+      }
+    }
+  }
+
   for (const r of runners) {
     if (r.finishTime != null) {
       if (leaderDone === null || r.finishTime < leaderDone) leaderDone = r.finishTime;
@@ -77,3 +323,4 @@ export function ranking(state: RaceState): Runner[] {
     return b.x - a.x;
   });
 }
+

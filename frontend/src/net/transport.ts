@@ -24,7 +24,7 @@ export interface Transport {
   send(msg: NetMessage): void;
   /** 只发给 Worker 的控制面消息（不广播给其他玩家），如服务端绘制计时通知 */
   notify(msg: NetMessage): void;
-  on(handler: MsgHandler): void;
+  on(handler: MsgHandler): () => void;
   onLinkState(handler: (s: LinkState) => void): void;
   close(): void;
   readonly id: string | null;
@@ -137,7 +137,13 @@ class P2PTransport implements Transport {
   }
 
   // ---------- 订阅 ----------
-  on(handler: MsgHandler): void { this.handlers.push(handler); }
+  on(handler: MsgHandler): () => void {
+    this.handlers.push(handler);
+    return () => {
+      const idx = this.handlers.indexOf(handler);
+      if (idx >= 0) this.handlers.splice(idx, 1);
+    };
+  }
   onLinkState(handler: (s: LinkState) => void): void {
     this.linkHandlers.push(handler);
     handler(this.linkState());

@@ -6,9 +6,9 @@ import { useGame, finishCurrentPart as finishPartState, prepareBirth } from "../
 import { LOGICAL_W, LOGICAL_H, PARTS, useDrawCanvas, type Part } from "./useDrawCanvas";
 
 const PART_HINTS: Record<Part, string> = {
-  legs: "腿部：自躯干向下画 4 条带弯折的长线（拐点识别为膝关节）。大腿:小腿≈1.05:1 速度最快，画成直棍或面条容易当场脱臼。",
-  head: "头部：画出马头与脖颈线条。头部高度与前伸量将直接决定机体奔跑时的重心投影与俯仰姿态。",
-  butt: "屁股：画出臀部轮廓与尾巴线条。后肢着力点与尾部空气阻尼将根据臀线自动张成。",
+  legs: "【第 1 步·腿部】：⚠️躯干会自动生成，请勿绘制躯干！仅在下方绿色框画 4 条带弯折的腿（拐点识别为膝关节）。大腿:小腿≈1.05:1 跑得最快，切勿在此画头或尾巴！",
+  head: "【第 2 步·头部】：⚠️仅在右上方蓝色框画出马脖子、头与耳朵！头部高度与前伸量决定重心与俯仰，切勿在此画腿或尾巴！",
+  butt: "【第 3 步·屁股】：⚠️仅在左侧橙色框画出臀部轮廓与尾巴！尾线决定后肢发力与阻尼，切勿在此画头或腿！",
 };
 
 const PART_LABELS: Record<Part, string> = {
@@ -68,8 +68,21 @@ export function DrawScreen() {
         </div>
       </div>
 
-      {g.partLeft <= 8 && (
-        <div className="urgent-hint">倒计时告急：未完成部位将由系统按 0.7 效率代偿补全！</div>
+      <div className="draw-guide-notice">
+        <span className="guide-badge">重要提示</span>
+        <div className="guide-content">
+          <b>马儿躯干为系统自动生成，玩家绝对无需绘制躯干！</b>
+          请仅在当前部位的虚线框内绘制：
+          {d.part === "legs" && <span className="guide-step-tip">【腿部】：从虚线躯干下方画 4 条带膝关节的长腿，切勿画头或尾巴！</span>}
+          {d.part === "head" && <span className="guide-step-tip">【头部】：在右上方画出向右伸展的脖子与马头，切勿画腿或尾巴！</span>}
+          {d.part === "butt" && <span className="guide-step-tip">【屁股】：在左侧画出臀线与尾巴线条，切勿画头或腿！</span>}
+        </div>
+      </div>
+
+      {g.partLeft <= 10 && (
+        <div className="urgent-hint">
+          ⏳ 倒计时快结束了：差不多得了，凑合凑合也能跑！
+        </div>
       )}
 
       <canvas ref={d.canvasRef} width={LOGICAL_W} height={LOGICAL_H} className="draw-canvas" />

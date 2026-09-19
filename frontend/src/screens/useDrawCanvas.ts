@@ -42,9 +42,9 @@ export function useDrawCanvas() {
     for (const s of strokes) drawStroke(s);
     if (current) drawStroke(current);
 
-    // 参考躯干虚线
+    // 参考躯干虚线与免绘提示
     ctx.save();
-    ctx.strokeStyle = "rgba(226,112,58,.55)";
+    ctx.strokeStyle = "rgba(226,112,58,.65)";
     ctx.lineWidth = 6;
     ctx.setLineDash([14, 10]);
     ctx.beginPath();
@@ -52,10 +52,52 @@ export function useDrawCanvas() {
     ctx.lineTo(LOGICAL_W * 0.76, LOGICAL_H * 0.42);
     ctx.stroke();
     ctx.setLineDash([]);
-    ctx.fillStyle = "rgba(226,112,58,.8)";
-    ctx.font = "14px sans-serif";
+    ctx.fillStyle = "rgba(226,112,58,.95)";
+    ctx.font = "bold 15px sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText("躯干（自动生成）", LOGICAL_W * 0.5, LOGICAL_H * 0.42 - 14);
+    ctx.fillText("⚠️ 躯干由系统自动连结生成，绝对无需绘制躯干！", LOGICAL_W * 0.5, LOGICAL_H * 0.42 - 14);
+
+    // 当前部位专属绘制指导范围框
+    if (part === "legs") {
+      const zx = LOGICAL_W * 0.16, zy = LOGICAL_H * 0.45, zw = LOGICAL_W * 0.68, zh = LOGICAL_H * 0.48;
+      ctx.fillStyle = "rgba(34, 197, 94, 0.06)";
+      ctx.fillRect(zx, zy, zw, zh);
+      ctx.strokeStyle = "rgba(34, 197, 94, 0.7)";
+      ctx.lineWidth = 2;
+      ctx.setLineDash([8, 6]);
+      ctx.strokeRect(zx, zy, zw, zh);
+      ctx.setLineDash([]);
+      ctx.fillStyle = "#15803d";
+      ctx.font = "bold 14px sans-serif";
+      ctx.textAlign = "left";
+      ctx.fillText("📍【第 1 步·腿部绘制范围】：从上方躯干向下画 4 条带膝弯的长腿（请勿画头、尾或躯干！）", zx + 12, zy + 24);
+    } else if (part === "head") {
+      const zx = LOGICAL_W * 0.54, zy = LOGICAL_H * 0.06, zw = LOGICAL_W * 0.40, zh = LOGICAL_H * 0.42;
+      ctx.fillStyle = "rgba(59, 130, 246, 0.06)";
+      ctx.fillRect(zx, zy, zw, zh);
+      ctx.strokeStyle = "rgba(59, 130, 246, 0.7)";
+      ctx.lineWidth = 2;
+      ctx.setLineDash([8, 6]);
+      ctx.strokeRect(zx, zy, zw, zh);
+      ctx.setLineDash([]);
+      ctx.fillStyle = "#1d4ed8";
+      ctx.font = "bold 14px sans-serif";
+      ctx.textAlign = "left";
+      ctx.fillText("📍【第 2 步·头部绘制范围】：画出斜向右上方的脖子、头与耳朵（请勿在此画腿或尾！）", zx + 12, zy + 24);
+    } else if (part === "butt") {
+      const zx = LOGICAL_W * 0.06, zy = LOGICAL_H * 0.18, zw = LOGICAL_W * 0.36, zh = LOGICAL_H * 0.50;
+      ctx.fillStyle = "rgba(249, 115, 22, 0.06)";
+      ctx.fillRect(zx, zy, zw, zh);
+      ctx.strokeStyle = "rgba(249, 115, 22, 0.7)";
+      ctx.lineWidth = 2;
+      ctx.setLineDash([8, 6]);
+      ctx.strokeRect(zx, zy, zw, zh);
+      ctx.setLineDash([]);
+      ctx.fillStyle = "#c2410c";
+      ctx.font = "bold 14px sans-serif";
+      ctx.textAlign = "left";
+      ctx.fillText("📍【第 3 步·屁股尾巴绘制范围】：画出臀线与尾巴（请勿画头或腿！）", zx + 12, zy + 24);
+    }
     ctx.restore();
 
     // 部位骨骼预览

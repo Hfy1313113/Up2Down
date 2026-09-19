@@ -10,7 +10,7 @@ export const WORLD_SCALE = 0.02;
 
 export interface HorseRig {
   group: THREE.Group;
-  setPose(pose: Pose): void;
+  setPose(pose: Pose, whipIntensity?: number, dt?: number): void;
   /** 头部世界锚点（本地坐标，未乘 group 变换） */
   headLocal: THREE.Vector3;
   dispose(): void;
@@ -143,9 +143,117 @@ export function buildHorse(model: HorseModel, color: string): HorseRig {
   tail.rotation.z = -0.7;
   group.add(tail);
 
+  // ---- 默认人类骑手形象与马鞭 ----
+  const riderGroup = new THREE.Group();
+  riderGroup.position.set(T.cx, T.cy + radius * 0.85, 0);
+  group.add(riderGroup);
+
+  // 1. 马鞍垫
+  const saddleGeo = track(new THREE.BoxGeometry(T.len * 0.36, 3, radius * 1.7));
+  const saddleMat = track(new THREE.MeshStandardMaterial({ color: "#221c18", roughness: 0.9 }));
+  const saddle = new THREE.Mesh(saddleGeo, saddleMat);
+  saddle.position.set(0, 1.5, 0);
+  riderGroup.add(saddle);
+
+  // 2. 骑手上身 / 骑手服
+  const jacketGeo = track(new THREE.CylinderGeometry(radius * 0.38, radius * 0.34, radius * 1.2, 8));
+  jacketGeo.translate(0, radius * 0.6, 0);
+  const jacketMat = track(new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.6 }));
+  const jacket = new THREE.Mesh(jacketGeo, jacketMat);
+  jacket.position.set(-radius * 0.1, 2, 0);
+  jacket.rotation.z = -0.22; // 竞速俯身冲刺姿态
+  riderGroup.add(jacket);
+
+  // 3. 骑手头部与头盔面罩
+  const headR = radius * 0.35;
+  const riderHeadGeo = track(new THREE.SphereGeometry(headR, 12, 10));
+  const skinMat = track(new THREE.MeshStandardMaterial({ color: "#ffcaa0", roughness: 0.7 }));
+  const riderHead = new THREE.Mesh(riderHeadGeo, skinMat);
+  riderHead.position.set(radius * 0.15, radius * 1.55, 0);
+  riderGroup.add(riderHead);
+
+  const helmetGeo = track(new THREE.SphereGeometry(headR * 1.05, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.55));
+  const helmetMat = track(new THREE.MeshStandardMaterial({ color, roughness: 0.4 }));
+  const helmet = new THREE.Mesh(helmetGeo, helmetMat);
+  helmet.position.set(0, headR * 0.12, 0);
+  riderHead.add(helmet);
+
+  const visorGeo = track(new THREE.BoxGeometry(headR * 0.9, 1.2, headR * 1.1));
+  const visorMat = track(new THREE.MeshStandardMaterial({ color: "#111111", roughness: 0.3 }));
+  const visor = new THREE.Mesh(visorGeo, visorMat);
+  visor.position.set(headR * 0.65, headR * 0.1, 0);
+  visor.rotation.z = -0.15;
+  riderHead.add(visor);
+
+  // 4. 双腿跨骑
+  const legColorMat = track(new THREE.MeshStandardMaterial({ color: "#334155", roughness: 0.8 }));
+  const bootMat = track(new THREE.MeshStandardMaterial({ color: "#1a1614", roughness: 0.5 }));
+  for (const s of [-1, 1]) {
+    const thighGeo = track(new THREE.CylinderGeometry(1.6, 1.3, radius * 0.85, 6));
+    thighGeo.translate(0, -radius * 0.42, 0);
+    const rThigh = new THREE.Mesh(thighGeo, legColorMat);
+    rThigh.position.set(radius * 0.1, 3, s * (radius * 0.92));
+    rThigh.rotation.z = -0.65; // 大腿前倾夹住马身
+    riderGroup.add(rThigh);
+
+    const shinGeo = track(new THREE.CylinderGeometry(1.3, 1.0, radius * 0.8, 6));
+    shinGeo.translate(0, -radius * 0.4, 0);
+    const rShin = new THREE.Mesh(shinGeo, legColorMat);
+    rShin.position.set(radius * 0.4, -radius * 0.25, s * (radius * 0.96));
+    rShin.rotation.z = 0.35; // 小腿踩在马镫
+    riderGroup.add(rShin);
+
+    const bootGeo = track(new THREE.BoxGeometry(2.4, 1.6, 2.2));
+    const boot = new THREE.Mesh(bootGeo, bootMat);
+    boot.position.set(radius * 0.45, -radius * 0.7, s * (radius * 0.96));
+    riderGroup.add(boot);
+  }
+
+  // 5. 左臂与缰绳（左手握缰）
+  const armMat = jacketMat;
+  const leftArmGeo = track(new THREE.CylinderGeometry(1.2, 0.9, radius * 0.9, 6));
+  leftArmGeo.translate(0, -radius * 0.45, 0);
+  const leftArm = new THREE.Mesh(leftArmGeo, armMat);
+  leftArm.position.set(radius * 0.1, radius * 1.1, -radius * 0.45);
+  leftArm.rotation.z = -0.9;
+  riderGroup.add(leftArm);
+
+  // 6. 右臂挥鞭关节（马鞭抽打马儿屁股）
+  const whipArmGroup = new THREE.Group();
+  whipArmGroup.position.set(-radius * 0.05, radius * 1.15, radius * 0.45);
+  riderGroup.add(whipArmGroup);
+
+  const rightArmGeo = track(new THREE.CylinderGeometry(1.2, 0.9, radius * 0.85, 6));
+  rightArmGeo.translate(0, -radius * 0.42, 0);
+  const rightArm = new THREE.Mesh(rightArmGeo, armMat);
+  rightArm.rotation.z = -0.3;
+  whipArmGroup.add(rightArm);
+
+  // 鞭杆与皮鞭尖
+  const whipGroup = new THREE.Group();
+  whipGroup.position.set(0, -radius * 0.8, 0);
+  whipArmGroup.add(whipGroup);
+
+  const whipStickGeo = track(new THREE.CylinderGeometry(0.5, 0.25, T.len * 0.45, 6));
+  whipStickGeo.translate(0, -T.len * 0.22, 0);
+  const whipStickMat = track(new THREE.MeshStandardMaterial({ color: "#2d1810", roughness: 0.6 }));
+  const whipStick = new THREE.Mesh(whipStickGeo, whipStickMat);
+  whipStick.rotation.z = -0.6; // 鞭身朝后指向马屁股
+  whipGroup.add(whipStick);
+
+  const whipLashGeo = track(new THREE.CylinderGeometry(0.25, 0.08, T.len * 0.22, 4));
+  whipLashGeo.translate(0, -T.len * 0.11, 0);
+  const whipLashMat = track(new THREE.MeshStandardMaterial({ color: "#e88024", roughness: 0.8 }));
+  const whipLash = new THREE.Mesh(whipLashGeo, whipLashMat);
+  whipLash.position.set(-T.len * 0.24, -T.len * 0.35, 0);
+  whipLash.rotation.z = -0.2;
+  whipGroup.add(whipLash);
+
+  let whipPhase = 0;
+
   const headLocal = new THREE.Vector3(H.x, H.y + H.size * 0.2, 0);
 
-  function setPose(pose: Pose) {
+  function setPose(pose: Pose, whipIntensity = 0, dt = 0.016) {
     legRigs.forEach((rig, i) => {
       const pl = pose.legs[i];
       if (!pl) return;
@@ -155,6 +263,22 @@ export function buildHorse(model: HorseModel, color: string): HorseRig {
     group.rotation.z = pose.pitch;
     // pose.bob 是模型本地单位，需换算到父级世界尺度
     group.position.y = pose.bob * group.scale.y;
+
+    // 骑手动态配合马儿跑姿与挥鞭逻辑
+    riderGroup.rotation.z = -pose.pitch * 0.3; // 骑手随马儿颠簸动态俯仰平衡
+
+    if (whipIntensity > 0.02) {
+      // 点击屏幕越激烈，挥鞭频率越快，幅度越大
+      whipPhase += dt * (10 + whipIntensity * 32);
+      const swing = Math.sin(whipPhase);
+      // 扬起手臂并全力抽下
+      whipArmGroup.rotation.z = -0.4 - whipIntensity * 0.6 + swing * (0.8 + whipIntensity * 0.9);
+      whipGroup.rotation.z = swing * (0.6 + whipIntensity * 0.8);
+    } else {
+      // 未连点时处于准备挥鞭姿势，轻微怠速晃动
+      whipArmGroup.rotation.z = -0.25;
+      whipGroup.rotation.z = 0.05;
+    }
   }
 
   return {
@@ -165,7 +289,11 @@ export function buildHorse(model: HorseModel, color: string): HorseRig {
         if (o instanceof THREE.Mesh) {
           o.geometry.dispose();
           const m = o.material as THREE.Material | THREE.Material[];
-          Array.isArray(m) ? m.forEach(x => x.dispose()) : m.dispose();
+          if (Array.isArray(m)) {
+            m.forEach(x => x.dispose());
+          } else {
+            m.dispose();
+          }
         }
       });
     },
