@@ -35,10 +35,9 @@ lobby ──房主 startGame()──► draw ──三部位画完 prepareBirth(
 
 - `horseMesh.buildHorse(model, color)`：把识别模型变成 `THREE.Group`。
   躯干为胶囊，颈/头/耳/眼/尾为基本几何；四条腿是 `hipGroup → 大腿 → kneeGroup → 小腿 + 蹄`
-  的两级连杆，`setPose(pose)` 每帧写入 `rotation.z`，与 `gait.legPoints` 的正解符号一致
-  （`hind: -1 / fore: +1`），躯干颠簸按 `pose.bob × group.scale.y` 换算到世界尺度。
-- `raceScene.RaceScene`：地面/跑道/栅栏/终点门/云；相机跟随领头马（第三人称）或绑在本马头部
-  （第一人称，按 V 切换，`render(state, view, dt)`）。马匹位置直接取 `raceSim` 的 `x` 与相位。
+  的两级连杆；马背搭载骑手模型与马鞭动力学关节，`setPose(pose, whipIntensity, dt)` 每帧写入步态正解与挥鞭抽打动作。
+- `raceScene.RaceScene`：地面/跑道/栅栏/终点门/云/礼花筒粒子系统；相机跟随自身战马（第三人称）或绑在本马头部且支持指针拖拽自由环视周围对手
+  （第一人称，按 V 切换，`render(state, view, dt)`）。渲染马匹真实横纵位移 `(x, y, z)`、三维旋转与浮动碰撞文案。
 - `birthScene.BirthScene`：展台 + 相机轨道 + 落地冲击与踉跄失衡物理反馈、平衡恢复后庆祝爆发、按实际包围盒
   把马归一到合适尺度后取景；`attachDrag` 提供指针拖拽全自由 360° 球面轨道环视与缩放。
 

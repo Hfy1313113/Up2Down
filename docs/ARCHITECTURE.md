@@ -26,9 +26,9 @@
 
 - **Vite + React + TypeScript**，纯静态产物，由同一个 Worker 的 `[assets]` 托管（也可单独挂 Pages）。
 - `src/game/`：纯算法，无 DOM 依赖——分部位识别（`recognize.ts`）、速度公式（`metrics.ts`）、
-  步态相位（`gait.ts`）、确定性赛跑积分（`raceSim.ts`）。可被单测直接驱动。
-- `src/three/`：three.js 场景层。`horseMesh.ts` 由识别模型生成 3D 马（双关节连杆按步态正解驱动）；
-  `raceScene.ts` 渲染赛道与双视角相机；`birthScene.ts` 渲染诞生仪式舞台。
+  步态相位（`gait.ts`）、赛跑物理积分与碰撞动力学（`raceSim.ts`，含连点加速脉冲衰减、冲撞/拌腿/美式截停/创飞交互）。可被单测直接驱动。
+- `src/three/`：three.js 场景层。`horseMesh.ts` 由识别模型生成 3D 马及骑手模型（双关节连杆按步态驱动，骑手支持连点挥鞭抽打马屁股动力学）；
+  `raceScene.ts` 渲染赛道、上帝视角聚焦本马相机、第一人称自由转头环视、物理位移与冲线礼花筒粒子系统；`birthScene.ts` 渲染诞生仪式舞台。
 - `src/state/game.ts`：阶段机 `lobby → draw → birth → waiting → race` 与房主协调逻辑。
 - `src/net/transport.ts`：唯一网络出口，封装控制面与数据面的选择、去重、降级、重连。
 
