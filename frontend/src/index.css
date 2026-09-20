@@ -113,8 +113,9 @@ button:disabled, button.primary:disabled {
 .draw-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
 .part-tabs { display: flex; gap: 8px; }
 .part-tab { background: #e2e8f0; color: #233140; box-shadow: 2px 2px 0 #233140; }
-.part-tab.active { background: #e2703a; color: #fff; }
-.part-tab.finished { background: #bbf7d0; color: #166534; }
+.part-tab.active { background: #e2703a !important; color: #fff !important; border-color: #233140 !important; }
+.part-tab.finished { background: #86efac !important; color: #14532d !important; border-color: #16a34a !important; box-shadow: 2px 2px 0 #15803d !important; }
+.part-tab.finished.active { background: #e2703a !important; color: #fff !important; border-color: #233140 !important; }
 .countdown { font-size: 24px; font-weight: 800; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
 .countdown .urgent, .countdown span.urgent { color: #dc2626; animation: urgent-pulse 0.8s infinite alternate; }
 @keyframes urgent-pulse { from { transform: scale(1); } to { transform: scale(1.15); } }

@@ -52,13 +52,18 @@ export function DrawScreen() {
           {PARTS.map(p => {
             const isActive = p === d.part;
             const isDone = finished.includes(p);
-            let cls = "bg-slate-200 text-[#233140]";
-            if (isActive) cls = "bg-[#e2703a] text-white";
-            else if (isDone) cls = "bg-emerald-200 text-emerald-900";
+            let stateCls = "";
+            if (isActive) {
+              stateCls = "active bg-[#e2703a] text-white border-[#233140]";
+            } else if (isDone) {
+              stateCls = "finished bg-[#86efac] text-[#14532d] border-[#16a34a] shadow-[2px_2px_0_#15803d]";
+            } else {
+              stateCls = "bg-slate-200 text-[#233140] border-[#233140]";
+            }
             return (
               <button
                 key={p}
-                className={`part-tab py-1 px-1 sm:px-3 sm:py-2 rounded-lg border-2 border-[#233140] text-xs sm:text-sm font-bold shadow-[2px_2px_0_#233140] active:translate-x-0.5 active:translate-y-0.5 transition-all text-center truncate ${cls}`}
+                className={`part-tab py-1 px-1 sm:px-3 sm:py-2 rounded-lg border-2 text-xs sm:text-sm font-bold shadow-[2px_2px_0_#233140] active:translate-x-0.5 active:translate-y-0.5 transition-all text-center truncate ${stateCls}`}
                 onClick={() => d.setPartTab(p)}
               >
                 <span className="sm:hidden">{PART_LABEL[p]}{isDone ? " ✓" : ""}</span>

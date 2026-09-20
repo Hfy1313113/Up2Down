@@ -301,9 +301,12 @@ export function RaceScreen({ demo = false }: { demo?: boolean }) {
         <div className="danger-ambient-pulse fixed inset-0 pointer-events-none z-25" />
       )}
 
+      {/* 赛前倒数与开跑横向居中自适应展示（坚决防止手机端压缩成竖排文字） */}
       {countdown && (
-        <div className="absolute top-[38%] left-1/2 -translate-x-1/2 -translate-y-1/2 text-7xl sm:text-9xl font-black text-[#e2703a] drop-shadow-[0_4px_16px_rgba(255,255,255,0.9)] pointer-events-none animate-pulse">
-          {countdown}
+        <div className="absolute top-[36%] left-1/2 -translate-x-1/2 -translate-y-1/2 z-40 pointer-events-none flex items-center justify-center w-full px-4">
+          <div className="text-6xl sm:text-8xl md:text-9xl font-black text-[#e2703a] whitespace-nowrap select-none text-center leading-none tracking-wider drop-shadow-[0_6px_24px_rgba(255,255,255,0.98)] animate-pulse">
+            {countdown}
+          </div>
         </div>
       )}
 

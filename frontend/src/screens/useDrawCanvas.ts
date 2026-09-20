@@ -35,68 +35,102 @@ export function useDrawCanvas() {
       ctx.stroke();
     };
     ctx.strokeStyle = "#9db4c6";
-    ctx.lineWidth = 4;
+    ctx.lineWidth = 6;
     for (const s of [...parts.legs, ...parts.head, ...parts.butt]) drawStroke(s);
     ctx.strokeStyle = "#2c3e50";
-    ctx.lineWidth = 5;
+    ctx.lineWidth = 8;
     for (const s of strokes) drawStroke(s);
     if (current) drawStroke(current);
 
-    // 参考躯干虚线与免绘提示
+    // 参考躯干虚线与免绘高亮提示（加粗大号虚线与高对比度标贴）
     ctx.save();
-    ctx.strokeStyle = "rgba(226,112,58,.65)";
-    ctx.lineWidth = 6;
-    ctx.setLineDash([14, 10]);
+    ctx.strokeStyle = "rgba(226, 112, 58, 0.9)";
+    ctx.lineWidth = 14;
+    ctx.setLineDash([20, 14]);
     ctx.beginPath();
-    ctx.moveTo(LOGICAL_W * 0.24, LOGICAL_H * 0.42);
-    ctx.lineTo(LOGICAL_W * 0.76, LOGICAL_H * 0.42);
+    ctx.moveTo(LOGICAL_W * 0.20, LOGICAL_H * 0.42);
+    ctx.lineTo(LOGICAL_W * 0.80, LOGICAL_H * 0.42);
     ctx.stroke();
     ctx.setLineDash([]);
-    ctx.fillStyle = "rgba(226,112,58,.95)";
-    ctx.font = "bold 15px sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText("⚠️ 躯干由系统自动连结生成，绝对无需绘制躯干！", LOGICAL_W * 0.5, LOGICAL_H * 0.42 - 14);
 
-    // 当前部位专属绘制指导范围框
+    // 躯干免绘大号胶囊标贴
+    const torsoTagW = 600, torsoTagH = 48;
+    const torsoTagX = LOGICAL_W * 0.5 - torsoTagW / 2;
+    const torsoTagY = LOGICAL_H * 0.42 - 60;
+    ctx.fillStyle = "rgba(255, 247, 237, 0.98)";
+    ctx.strokeStyle = "#ea580c";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.roundRect(torsoTagX, torsoTagY, torsoTagW, torsoTagH, 24);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#c2410c";
+    ctx.font = "bold 23px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("⚠️ 躯干由系统自动生成，玩家绝对无需绘制躯干！", LOGICAL_W * 0.5, torsoTagY + torsoTagH / 2);
+
+    // 当前部位专属绘制指导范围框（大号高对比度徽章标贴 + 加粗清晰虚线框）
     if (part === "legs") {
       const zx = LOGICAL_W * 0.16, zy = LOGICAL_H * 0.45, zw = LOGICAL_W * 0.68, zh = LOGICAL_H * 0.48;
-      ctx.fillStyle = "rgba(34, 197, 94, 0.06)";
+      ctx.fillStyle = "rgba(34, 197, 94, 0.1)";
       ctx.fillRect(zx, zy, zw, zh);
-      ctx.strokeStyle = "rgba(34, 197, 94, 0.7)";
-      ctx.lineWidth = 2;
-      ctx.setLineDash([8, 6]);
+      ctx.strokeStyle = "#16a34a";
+      ctx.lineWidth = 6;
+      ctx.setLineDash([16, 10]);
       ctx.strokeRect(zx, zy, zw, zh);
       ctx.setLineDash([]);
+
+      const pillW = 520, pillH = 46;
       ctx.fillStyle = "#15803d";
-      ctx.font = "bold 14px sans-serif";
+      ctx.beginPath();
+      ctx.roundRect(zx + 14, zy + 14, pillW, pillH, 10);
+      ctx.fill();
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 22px sans-serif";
       ctx.textAlign = "left";
-      ctx.fillText("📍【第 1 步·腿部绘制范围】：从上方躯干向下画 4 条带膝弯的长腿（请勿画头、尾或躯干！）", zx + 12, zy + 24);
+      ctx.textBaseline = "middle";
+      ctx.fillText("📍【第 1 步·腿部范围】：从躯干向下画 4 条长腿", zx + 24, zy + 14 + pillH / 2);
     } else if (part === "head") {
       const zx = LOGICAL_W * 0.54, zy = LOGICAL_H * 0.06, zw = LOGICAL_W * 0.40, zh = LOGICAL_H * 0.42;
-      ctx.fillStyle = "rgba(59, 130, 246, 0.06)";
+      ctx.fillStyle = "rgba(59, 130, 246, 0.1)";
       ctx.fillRect(zx, zy, zw, zh);
-      ctx.strokeStyle = "rgba(59, 130, 246, 0.7)";
-      ctx.lineWidth = 2;
-      ctx.setLineDash([8, 6]);
+      ctx.strokeStyle = "#2563eb";
+      ctx.lineWidth = 6;
+      ctx.setLineDash([16, 10]);
       ctx.strokeRect(zx, zy, zw, zh);
       ctx.setLineDash([]);
+
+      const pillW = 420, pillH = 46;
       ctx.fillStyle = "#1d4ed8";
-      ctx.font = "bold 14px sans-serif";
+      ctx.beginPath();
+      ctx.roundRect(zx + 14, zy + 14, pillW, pillH, 10);
+      ctx.fill();
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 22px sans-serif";
       ctx.textAlign = "left";
-      ctx.fillText("📍【第 2 步·头部绘制范围】：画出斜向右上方的脖子、头与耳朵（请勿在此画腿或尾！）", zx + 12, zy + 24);
+      ctx.textBaseline = "middle";
+      ctx.fillText("📍【第 2 步·头部范围】：画马脖子与头耳", zx + 24, zy + 14 + pillH / 2);
     } else if (part === "butt") {
       const zx = LOGICAL_W * 0.06, zy = LOGICAL_H * 0.18, zw = LOGICAL_W * 0.36, zh = LOGICAL_H * 0.50;
-      ctx.fillStyle = "rgba(249, 115, 22, 0.06)";
+      ctx.fillStyle = "rgba(249, 115, 22, 0.1)";
       ctx.fillRect(zx, zy, zw, zh);
-      ctx.strokeStyle = "rgba(249, 115, 22, 0.7)";
-      ctx.lineWidth = 2;
-      ctx.setLineDash([8, 6]);
+      ctx.strokeStyle = "#ea580c";
+      ctx.lineWidth = 6;
+      ctx.setLineDash([16, 10]);
       ctx.strokeRect(zx, zy, zw, zh);
       ctx.setLineDash([]);
+
+      const pillW = 380, pillH = 46;
       ctx.fillStyle = "#c2410c";
-      ctx.font = "bold 14px sans-serif";
+      ctx.beginPath();
+      ctx.roundRect(zx + 14, zy + 14, pillW, pillH, 10);
+      ctx.fill();
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 22px sans-serif";
       ctx.textAlign = "left";
-      ctx.fillText("📍【第 3 步·屁股尾巴绘制范围】：画出臀线与尾巴（请勿画头或腿！）", zx + 12, zy + 24);
+      ctx.textBaseline = "middle";
+      ctx.fillText("📍【第 3 步·屁股范围】：画臀线与尾巴", zx + 24, zy + 14 + pillH / 2);
     }
     ctx.restore();
 
