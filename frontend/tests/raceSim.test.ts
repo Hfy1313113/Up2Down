@@ -103,4 +103,40 @@ describe("raceSim 位移积分", () => {
     expect(victim.vy).toBeGreaterThan(0);
     expect(victim.interactionText).toContain("创飞");
   });
+
+  it("加速上限过载警告与颠飞下马：维持上限持续超过 3 秒导致坠马出局", () => {
+    let s = createRace(entries);
+    const dt = 1 / 60;
+
+    // 维持加速上限 2 秒 (120 ticks)
+    for (let t = 0; t < 120; t++) {
+      // 每一小段补充点击保持上限
+      if (t % 5 === 0) {
+        for (let k = 0; k < 4; k++) s = applyTapBoost(s, "a");
+      }
+      s = updateRace(s, dt);
+    }
+    const rA2s = s.runners.find(r => r.id === "a")!;
+    expect(rA2s.dangerDuration).toBeGreaterThan(1.5);
+    expect(rA2s.buckedOff).toBe(false);
+    expect(rA2s.failed).toBe(false);
+
+    // 继续高频点击维持上限直到满 3.2 秒
+    for (let t = 0; t < 80; t++) {
+      if (t % 5 === 0) {
+        for (let k = 0; k < 4; k++) s = applyTapBoost(s, "a");
+      }
+      s = updateRace(s, dt);
+    }
+    const rA3s = s.runners.find(r => r.id === "a")!;
+    expect(rA3s.buckedOff).toBe(true);
+    expect(rA3s.failed).toBe(true);
+    expect(rA3s.effectiveSpeed).toBe(0);
+    expect(rA3s.interactionText).toContain("颠飞下马");
+
+    // 颠飞者在排名中被置底
+    const rank = ranking(s);
+    expect(rank[rank.length - 1].id).toBe("a");
+    expect(rank[rank.length - 1].failed).toBe(true);
+  });
 });

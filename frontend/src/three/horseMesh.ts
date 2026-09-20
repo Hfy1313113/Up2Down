@@ -10,7 +10,15 @@ export const WORLD_SCALE = 0.02;
 
 export interface HorseRig {
   group: THREE.Group;
-  setPose(pose: Pose, whipIntensity?: number, dt?: number): void;
+  setPose(
+    pose: Pose,
+    whipIntensity?: number,
+    dt?: number,
+    buckedOff?: boolean,
+    riderFlyY?: number,
+    riderFlyRot?: number,
+    riderFlyX?: number
+  ): void;
   /** 头部世界锚点（本地坐标，未乘 group 变换） */
   headLocal: THREE.Vector3;
   dispose(): void;
@@ -253,7 +261,15 @@ export function buildHorse(model: HorseModel, color: string): HorseRig {
 
   const headLocal = new THREE.Vector3(H.x, H.y + H.size * 0.2, 0);
 
-  function setPose(pose: Pose, whipIntensity = 0, dt = 0.016) {
+  function setPose(
+    pose: Pose,
+    whipIntensity = 0,
+    dt = 0.016,
+    buckedOff = false,
+    riderFlyY = 0,
+    riderFlyRot = 0,
+    riderFlyX = 0
+  ) {
     legRigs.forEach((rig, i) => {
       const pl = pose.legs[i];
       if (!pl) return;
@@ -264,20 +280,32 @@ export function buildHorse(model: HorseModel, color: string): HorseRig {
     // pose.bob 是模型本地单位，需换算到父级世界尺度
     group.position.y = pose.bob * group.scale.y;
 
-    // 骑手动态配合马儿跑姿与挥鞭逻辑
-    riderGroup.rotation.z = -pose.pitch * 0.3; // 骑手随马儿颠簸动态俯仰平衡
-
-    if (whipIntensity > 0.02) {
-      // 点击屏幕越激烈，挥鞭频率越快，幅度越大
-      whipPhase += dt * (10 + whipIntensity * 32);
-      const swing = Math.sin(whipPhase);
-      // 扬起手臂并全力抽下
-      whipArmGroup.rotation.z = -0.4 - whipIntensity * 0.6 + swing * (0.8 + whipIntensity * 0.9);
-      whipGroup.rotation.z = swing * (0.6 + whipIntensity * 0.8);
+    if (buckedOff) {
+      // 骑手被马儿颠飞脱离马背，飞向高空翻滚！
+      riderGroup.position.set(
+        T.cx - radius * 0.1 - riderFlyX,
+        T.cy + radius * 0.85 + riderFlyY * 20,
+        0
+      );
+      riderGroup.rotation.set(riderFlyRot * 0.6, 0, riderFlyRot);
+      whipArmGroup.rotation.z = -1.2;
     } else {
-      // 未连点时处于准备挥鞭姿势，轻微怠速晃动
-      whipArmGroup.rotation.z = -0.25;
-      whipGroup.rotation.z = 0.05;
+      // 骑手随马儿颠簸动态俯仰平衡
+      riderGroup.position.set(T.cx, T.cy + radius * 0.85, 0);
+      riderGroup.rotation.set(0, 0, -pose.pitch * 0.3);
+
+      if (whipIntensity > 0.02) {
+        // 点击屏幕越激烈，挥鞭频率越快，幅度越大
+        whipPhase += dt * (10 + whipIntensity * 32);
+        const swing = Math.sin(whipPhase);
+        // 扬起手臂并全力抽下
+        whipArmGroup.rotation.z = -0.4 - whipIntensity * 0.6 + swing * (0.8 + whipIntensity * 0.9);
+        whipGroup.rotation.z = swing * (0.6 + whipIntensity * 0.8);
+      } else {
+        // 未连点时处于准备挥鞭姿势，轻微怠速晃动
+        whipArmGroup.rotation.z = -0.25;
+        whipGroup.rotation.z = 0.05;
+      }
     }
   }
 

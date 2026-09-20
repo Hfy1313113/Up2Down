@@ -11,6 +11,8 @@ export const MAX_BOOST = 1.6;             // 最高加速倍率 (+60%)
 export const BOOST_DECAY = 1.8;           // 连点增益每秒自然衰减
 export const TAP_IMPULSE = 0.35;          // 单次点击激发的加速脉冲
 export const MAX_TAP_INTENSITY = 2.5;     // 连点强度上限
+export const DANGER_BOOST_THRESHOLD = 1.55; // 接近或等于加速上限的预警阈值
+export const BUCK_OFF_TIME = 3.0;          // 维持在上限连续超过 3 秒颠飞下马
 
 export type InteractionType = "bump" | "trip" | "pit" | "launch";
 
@@ -34,6 +36,13 @@ export interface Runner {
   boost: number;            // 当前加速倍率 [1.0, MAX_BOOST]
   tapIntensity: number;     // 连点激烈程度 (0 ~ MAX_TAP_INTENSITY)
   whipIntensity: number;    // 挥鞭强度 (0 ~ 1.0)
+  dangerDuration: number;   // 维持在加速上限附近的连续时长（秒）
+  buckedOff: boolean;       // 是否被马儿颠飞下马
+  failed: boolean;          // 该玩家是否已游戏失败
+  riderFlyX: number;        // 骑手被颠飞脱离后的相对纵向位移
+  riderFlyY: number;        // 骑手被颠飞脱离后的相对垂直位移
+  riderFlyZ: number;        // 骑手被颠飞脱离后的相对横向位移
+  riderFlyRot: number;      // 骑手空中翻滚角
   stumbleTimer: number;     // 拌腿硬直剩余时间
   spinTimer: number;        // 美式截停打转硬直
   launchedTimer: number;    // 被创飞浮空状态
@@ -77,6 +86,13 @@ export function createRace(entries: { id: string; name: string; model: HorseMode
         boost: 1.0,
         tapIntensity: 0,
         whipIntensity: 0,
+        dangerDuration: 0,
+        buckedOff: false,
+        failed: false,
+        riderFlyX: 0,
+        riderFlyY: 0,
+        riderFlyZ: 0,
+        riderFlyRot: 0,
         stumbleTimer: 0,
         spinTimer: 0,
         launchedTimer: 0,
@@ -94,7 +110,7 @@ export function createRace(entries: { id: string; name: string; model: HorseMode
 // 玩家点击屏幕或按下空格：注入连点冲量
 export function applyTapBoost(state: RaceState, runnerId: string): RaceState {
   const runners = state.runners.map(r => {
-    if (r.id !== runnerId || r.finished) return r;
+    if (r.id !== runnerId || r.finished || r.buckedOff || r.failed) return r;
     const newIntensity = Math.min(MAX_TAP_INTENSITY, r.tapIntensity + TAP_IMPULSE);
     const boost = 1.0 + Math.min(MAX_BOOST - 1.0, newIntensity * 0.25);
     const whipIntensity = Math.min(1.0, newIntensity / 1.4);
@@ -108,15 +124,53 @@ export function applyTapBoost(state: RaceState, runnerId: string): RaceState {
   return { ...state, runners };
 }
 
-// 网络同步其他玩家的 boost
-export function setRunnerBoost(state: RaceState, runnerId: string, boost: number, whipIntensity?: number): RaceState {
+// 网络同步其他玩家的 boost 与颠飞状态
+export function setRunnerBoost(
+  state: RaceState,
+  runnerId: string,
+  boost: number,
+  whipIntensity?: number,
+  buckedOff?: boolean
+): RaceState {
   const runners = state.runners.map(r => {
     if (r.id !== runnerId) return r;
+    if (buckedOff || r.buckedOff || r.failed) {
+      return {
+        ...r,
+        buckedOff: true,
+        failed: true,
+        boost: 1.0,
+        tapIntensity: 0,
+        whipIntensity: 0,
+        effectiveSpeed: 0,
+      };
+    }
     const clampedBoost = Math.max(1.0, Math.min(MAX_BOOST, boost));
     return {
       ...r,
       boost: clampedBoost,
       whipIntensity: whipIntensity ?? Math.min(1.0, (clampedBoost - 1.0) / (MAX_BOOST - 1.0)),
+    };
+  });
+  return { ...state, runners };
+}
+
+export function setRunnerBuckedOff(state: RaceState, runnerId: string): RaceState {
+  const runners = state.runners.map(r => {
+    if (r.id !== runnerId || r.buckedOff) return r;
+    return {
+      ...r,
+      buckedOff: true,
+      failed: true,
+      boost: 1.0,
+      tapIntensity: 0,
+      whipIntensity: 0,
+      dangerDuration: 0,
+      effectiveSpeed: 0,
+      interactionText: "颠飞下马！💥",
+      interactionTimer: 4.0,
+      riderFlyY: 0.5,
+      riderFlyRot: 0.5,
     };
   });
   return { ...state, runners };
@@ -129,9 +183,40 @@ export function updateRace(state: RaceState, dt: number): RaceState {
   let allDone = true;
   let leaderDone: number | null = null;
 
-  // 1. 各 runner 动力学、连点衰减与阻尼更新
+  // 1. 各 runner 动力学、连点衰减、上限判定与阻尼更新
   let runners = state.runners.map(r => {
     if (r.finished) return r;
+
+    // 若已经颠飞坠马失败，则马匹迅速减速滑停，骑手继续翻滚抛飞
+    if (r.buckedOff || r.failed) {
+      const riderFlyY = Math.min(25, r.riderFlyY + (18 - r.riderFlyY * 0.4) * dt);
+      const riderFlyX = r.riderFlyX + 12 * dt;
+      const riderFlyRot = r.riderFlyRot + 14 * dt;
+      const effectiveSpeed = Math.max(0, r.effectiveSpeed - 180 * dt);
+      const x = r.x + effectiveSpeed * dt;
+      const phase = (r.phase + (effectiveSpeed / Math.max(1, r.speed)) * (dt / r.period)) % 1;
+      const interactionTimer = Math.max(0, r.interactionTimer - dt);
+      const interactionText = interactionTimer > 0 ? r.interactionText : null;
+      return {
+        ...r,
+        effectiveSpeed,
+        x,
+        phase,
+        boost: 1.0,
+        tapIntensity: 0,
+        whipIntensity: 0,
+        dangerDuration: 0,
+        buckedOff: true,
+        failed: true,
+        riderFlyX,
+        riderFlyY,
+        riderFlyRot,
+        interactionTimer,
+        interactionText,
+        finished: false,
+        finishTime: null,
+      };
+    }
 
     // 衰减连点强度与计算当前加速
     const tapIntensity = Math.max(0, r.tapIntensity - BOOST_DECAY * dt);
@@ -139,13 +224,34 @@ export function updateRace(state: RaceState, dt: number): RaceState {
     const boost = Math.max(r.boost > 1.0 ? Math.max(1.0, r.boost - (BOOST_DECAY * 0.25) * dt) : 1.0, calculatedBoost);
     const whipIntensity = Math.max(0, r.whipIntensity - BOOST_DECAY * 0.8 * dt);
 
+    // 维持在接近或等于加速上限的连续时长检测 (≥ 3 秒则颠飞下马出局)
+    let dangerDuration = r.dangerDuration;
+    let buckedOff = false;
+    let failed = false;
+    let riderFlyX = r.riderFlyX;
+    let riderFlyY = r.riderFlyY;
+    let riderFlyRot = r.riderFlyRot;
+
     // 碰撞/交互计时器递减
     const stumbleTimer = Math.max(0, r.stumbleTimer - dt);
     const spinTimer = Math.max(0, r.spinTimer - dt);
     const launchedTimer = Math.max(0, r.launchedTimer - dt);
     const cooldownTimer = Math.max(0, r.cooldownTimer - dt);
     const interactionTimer = Math.max(0, r.interactionTimer - dt);
-    const interactionText = interactionTimer > 0 ? r.interactionText : null;
+    let interactionText = interactionTimer > 0 ? r.interactionText : null;
+
+    if (boost >= DANGER_BOOST_THRESHOLD) {
+      dangerDuration += dt;
+      if (dangerDuration >= BUCK_OFF_TIME) {
+        buckedOff = true;
+        failed = true;
+        interactionText = "颠飞下马！💥";
+        riderFlyY = 0.6;
+        riderFlyRot = 0.6;
+      }
+    } else {
+      dangerDuration = 0;
+    }
 
     // 计算物理状态对速度的减速惩罚
     let penalty = 1.0;
@@ -153,10 +259,10 @@ export function updateRace(state: RaceState, dt: number): RaceState {
     if (spinTimer > 0) penalty *= 0.35;       // 美式截停打转失速
     if (launchedTimer > 0) penalty *= 0.25;   // 空中创飞失速
 
-    const effectiveSpeed = r.speed * boost * penalty;
+    const effectiveSpeed = buckedOff ? 0 : r.speed * boost * penalty;
     const x = r.x + effectiveSpeed * dt;
     const phase = (r.phase + (effectiveSpeed / Math.max(1, r.speed)) * (dt / r.period)) % 1;
-    const finished = x >= TRACK_LEN;
+    const finished = !buckedOff && x >= TRACK_LEN;
 
     // 横向弹簧恢复力（往 baseZ 回归）
     const spring = (r.baseZ - r.z) * 3.5;
@@ -203,12 +309,18 @@ export function updateRace(state: RaceState, dt: number): RaceState {
       tapIntensity,
       boost,
       whipIntensity,
+      dangerDuration,
+      buckedOff,
+      failed,
+      riderFlyX,
+      riderFlyY,
+      riderFlyRot,
       stumbleTimer,
       spinTimer,
       launchedTimer,
       cooldownTimer,
       interactionText,
-      interactionTimer,
+      interactionTimer: buckedOff ? 4.0 : interactionTimer,
       effectiveSpeed,
       x,
       z,
@@ -230,7 +342,7 @@ export function updateRace(state: RaceState, dt: number): RaceState {
     for (let j = i + 1; j < len; j++) {
       const rA = runners[i];
       const rB = runners[j];
-      if (rA.finished || rB.finished) continue;
+      if (rA.finished || rB.finished || rA.failed || rB.failed) continue;
 
       const dx = rA.x - rB.x;
       const dz = rA.z - rB.z;
@@ -308,15 +420,20 @@ export function updateRace(state: RaceState, dt: number): RaceState {
     if (r.finishTime != null) {
       if (leaderDone === null || r.finishTime < leaderDone) leaderDone = r.finishTime;
     }
-    allDone = allDone && r.finished;
+    const settled = r.finished || r.failed;
+    allDone = allDone && settled;
   }
   const over = allDone || (leaderDone !== null && time - leaderDone > 10);
   return { time, over, runners };
 }
 
-// 名次：冲线者按时间，未完赛者按距离
+// 名次：冲线者按时间，未完赛者按距离，颠飞失败者置底
 export function ranking(state: RaceState): Runner[] {
   return state.runners.slice().sort((a, b) => {
+    if (a.failed && !b.failed) return 1;
+    if (!a.failed && b.failed) return -1;
+    if (a.failed && b.failed) return b.x - a.x;
+
     if (a.finishTime != null && b.finishTime != null) return a.finishTime - b.finishTime;
     if (a.finishTime != null) return -1;
     if (b.finishTime != null) return 1;

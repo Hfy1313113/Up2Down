@@ -346,7 +346,15 @@ export class RaceScene {
       const obj = this.horses[i];
       if (!obj) return;
       const pose = computePose(r.model, r.phase);
-      obj.rig.setPose(pose, r.whipIntensity, dt);
+      obj.rig.setPose(
+        pose,
+        r.whipIntensity,
+        dt,
+        r.buckedOff,
+        r.riderFlyY,
+        r.riderFlyRot,
+        r.riderFlyX
+      );
 
       const posX = r.x * S;
       const posZ = r.z;
