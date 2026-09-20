@@ -371,9 +371,31 @@ export class RaceScene {
 
     const me = st.runners[this.myIndex] ?? st.runners[0];
     const myObj = this.horses[this.myIndex] ?? this.horses[0];
+    const pose = computePose(me.model, me.phase);
 
-    if (view === "first") {
-      const pose = computePose(me.model, me.phase);
+    if (me.buckedOff) {
+      // 第二人称动画视角：战马主视角回头特写，冷漠回望看着被颠飞的小人疯狂螺旋升天
+      const horseHead = myObj.rig.headLocal.clone().multiplyScalar(S);
+      const hx = me.x * S + horseHead.x;
+      const hy = (pose.bob + me.y) * S + horseHead.y + 0.8;
+      const hz = me.z;
+
+      // 相机架设在马头前侧偏上方，镜头直接对准抛飞升天的小人
+      const camX = hx + 1.8 + Math.sin(me.riderFlyRot * 3) * 0.2;
+      const camY = hy + 1.2;
+      const camZ = hz + 1.8;
+
+      // 目标：正在抛物线升天狂乱翻滚的受难小人
+      const riderTargetX = me.x * S - me.riderFlyX * S;
+      const riderTargetY = hy + me.riderFlyY * 22 * S;
+      const riderTargetZ = hz + Math.sin(me.riderFlyRot * 4) * 6 * S;
+
+      this.camera.position.set(camX, camY, camZ);
+      this.camera.lookAt(riderTargetX, riderTargetY, riderTargetZ);
+      // 镜头微倾斜带出滑稽特写戏剧感
+      this.camera.up.set(Math.sin(me.riderFlyRot * 2) * 0.15, 1, 0);
+    } else if (view === "first") {
+      this.camera.up.set(0, 1, 0);
       const head = myObj.rig.headLocal.clone().multiplyScalar(S);
       const z = me.z;
       const bob = (pose.bob + me.y) * S;
@@ -395,6 +417,7 @@ export class RaceScene {
       this.camera.position.set(eyeX, eyeY, z);
       this.camera.lookAt(eyeX + forwardX, eyeY + forwardY, z + forwardZ);
     } else {
+      this.camera.up.set(0, 1, 0);
       // 第三人称上帝视角：精确跟随用户自己的马儿
       const myTargetX = Math.min(me.x, TRACK_LEN) * S;
       const myTargetZ = me.z;

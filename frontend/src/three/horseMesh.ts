@@ -196,6 +196,8 @@ export function buildHorse(model: HorseModel, color: string): HorseRig {
   // 4. 双腿跨骑
   const legColorMat = track(new THREE.MeshStandardMaterial({ color: "#334155", roughness: 0.8 }));
   const bootMat = track(new THREE.MeshStandardMaterial({ color: "#1a1614", roughness: 0.5 }));
+  const riderThighs: THREE.Mesh[] = [];
+  const riderShins: THREE.Mesh[] = [];
   for (const s of [-1, 1]) {
     const thighGeo = track(new THREE.CylinderGeometry(1.6, 1.3, radius * 0.85, 6));
     thighGeo.translate(0, -radius * 0.42, 0);
@@ -203,6 +205,7 @@ export function buildHorse(model: HorseModel, color: string): HorseRig {
     rThigh.position.set(radius * 0.1, 3, s * (radius * 0.92));
     rThigh.rotation.z = -0.65; // 大腿前倾夹住马身
     riderGroup.add(rThigh);
+    riderThighs.push(rThigh);
 
     const shinGeo = track(new THREE.CylinderGeometry(1.3, 1.0, radius * 0.8, 6));
     shinGeo.translate(0, -radius * 0.4, 0);
@@ -210,6 +213,7 @@ export function buildHorse(model: HorseModel, color: string): HorseRig {
     rShin.position.set(radius * 0.4, -radius * 0.25, s * (radius * 0.96));
     rShin.rotation.z = 0.35; // 小腿踩在马镫
     riderGroup.add(rShin);
+    riderShins.push(rShin);
 
     const bootGeo = track(new THREE.BoxGeometry(2.4, 1.6, 2.2));
     const boot = new THREE.Mesh(bootGeo, bootMat);
@@ -281,18 +285,40 @@ export function buildHorse(model: HorseModel, color: string): HorseRig {
     group.position.y = pose.bob * group.scale.y;
 
     if (buckedOff) {
-      // 骑手被马儿颠飞脱离马背，飞向高空翻滚！
+      // 抽象大风车狂甩肢体与高空弹射旋转
       riderGroup.position.set(
         T.cx - radius * 0.1 - riderFlyX,
         T.cy + radius * 0.85 + riderFlyY * 20,
-        0
+        Math.sin(riderFlyRot * 4) * 6
       );
-      riderGroup.rotation.set(riderFlyRot * 0.6, 0, riderFlyRot);
-      whipArmGroup.rotation.z = -1.2;
+      // 三维多轴失控狂转
+      riderGroup.rotation.set(riderFlyRot * 1.4, riderFlyRot * 0.9, riderFlyRot * 1.8);
+
+      // 四肢抽象大风车狂甩
+      const flail = Math.sin(riderFlyRot * 15);
+      const flailCos = Math.cos(riderFlyRot * 15);
+      leftArm.rotation.set(flail * 2.2, 0, flailCos * 2.5);
+      whipArmGroup.rotation.set(-flail * 2.5, 0, -flailCos * 2.8);
+      whipGroup.rotation.set(flailCos * 3.5, flail * 3.5, flail * 4);
+
+      if (riderThighs[0]) riderThighs[0].rotation.set(flail * 1.4, 0, -0.65 + flail * 1.8);
+      if (riderThighs[1]) riderThighs[1].rotation.set(-flail * 1.4, 0, -0.65 - flail * 1.8);
+      if (riderShins[0]) riderShins[0].rotation.set(0, 0, 0.35 + flailCos * 2.2);
+      if (riderShins[1]) riderShins[1].rotation.set(0, 0, 0.35 - flailCos * 2.2);
+
+      riderHead.rotation.set(Math.sin(riderFlyRot * 18) * 0.8, Math.cos(riderFlyRot * 15) * 1.2, 0);
+
+      // 战马扭过头来回眸看着颠飞的你（第二人称回望）
+      head.rotation.set(0.1, -1.35, -0.2);
     } else {
-      // 骑手随马儿颠簸动态俯仰平衡
+      // 正常跑动
       riderGroup.position.set(T.cx, T.cy + radius * 0.85, 0);
       riderGroup.rotation.set(0, 0, -pose.pitch * 0.3);
+      head.rotation.set(0, 0, 0.35);
+      leftArm.rotation.set(0, 0, -0.9);
+      riderHead.rotation.set(0, 0, 0);
+      riderThighs.forEach(t => t.rotation.set(0, 0, -0.65));
+      riderShins.forEach(s => s.rotation.set(0, 0, 0.35));
 
       if (whipIntensity > 0.02) {
         // 点击屏幕越激烈，挥鞭频率越快，幅度越大

@@ -27,8 +27,8 @@
 - **Vite + React + TypeScript + Tailwind CSS**，纯静态产物，由同一个 Worker 的 `[assets]` 托管（也可单独挂 Pages）。采用 Tailwind CSS 响应式整体框架，深度适配手机、平板与桌面端，确保在各类分辨率与视口比例下杜绝元素堆叠或相互遮挡。
 - `src/game/`：纯算法，无 DOM 依赖——分部位识别（`recognize.ts`）、速度公式（`metrics.ts`）、
   步态相位（`gait.ts`）、赛跑物理积分与碰撞动力学（`raceSim.ts`，含连点加速脉冲衰减、极限加速过载监测、连续超上限 3 秒颠飞下马出局机制、冲撞/拌腿/美式截停/创飞交互）。可被单测直接驱动。
-- `src/three/`：three.js 场景层。`horseMesh.ts` 由识别模型生成 3D 马及骑手模型（双关节连杆按步态驱动，骑手支持连点挥鞭抽打马屁股动力学以及颠飞出局的人马分离抛飞姿态）；
-  `raceScene.ts` 渲染赛道、上帝视角聚焦本马相机、第一人称自由转头环视、物理位移与冲线礼花筒粒子系统；`birthScene.ts` 渲染诞生仪式舞台。
+- `src/three/`：three.js 场景层。`horseMesh.ts` 由识别模型生成 3D 马及骑手模型（双关节连杆按步态驱动，骑手支持连点挥鞭抽打马屁股动力学以及颠飞出局的人马分离、四肢大风车失控抛飞姿态）；
+  `raceScene.ts` 渲染赛道、上帝视角聚焦本马相机、第一人称自由转头环视、第二人称战马回眸目送受难骑手特写、物理位移与冲线礼花筒粒子系统；`birthScene.ts` 渲染诞生仪式舞台。
 - `src/state/game.ts`：阶段机 `lobby → draw → birth → waiting → race` 与房主协调逻辑。
 - `src/net/transport.ts`：唯一网络出口，封装控制面与数据面的选择、去重、降级、重连。
 

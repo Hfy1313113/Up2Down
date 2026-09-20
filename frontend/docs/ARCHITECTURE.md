@@ -36,9 +36,8 @@ lobby ──房主 startGame()──► draw ──三部位画完 prepareBirth(
 - **Tailwind CSS 页面框架**：全站屏幕采用 Tailwind CSS 进行响应式栅格与自适应弹性排版，针对手机（含小屏 iPhone SE）、平板与桌面端进行细粒度适配，确保任何视口比例下无元素遮挡、文本截断或组件堆叠。
 - `horseMesh.buildHorse(model, color)`：把识别模型变成 `THREE.Group`。
   躯干为胶囊，颈/头/耳/眼/尾为基本几何；四条腿是 `hipGroup → 大腿 → kneeGroup → 小腿 + 蹄`
-  的两级连杆；马背搭载骑手模型与马鞭动力学关节，`setPose(pose, whipIntensity, dt, buckedOff, riderFlyY, riderFlyRot, riderFlyX)` 每帧写入步态正解、挥鞭抽打动作与过载坠马的人马分离抛飞物理姿态。
-- `raceScene.RaceScene`：地面/跑道/栅栏/终点门/云/礼花筒粒子系统；相机跟随自身战马（第三人称）或绑在本马头部且支持指针拖拽自由环视周围对手
-  （第一人称，按 V 切换，`render(state, view, dt)`）。渲染马匹真实横纵位移 `(x, y, z)`、三维旋转与浮动碰撞文案。
+  的两级连杆；马背搭载骑手模型与马鞭动力学关节，`setPose(pose, whipIntensity, dt, buckedOff, riderFlyY, riderFlyRot, riderFlyX)` 每帧写入步态正解、挥鞭抽打动作与过载坠马的人马分离、四肢乱蹬大风车抽象抛飞物理姿态。
+- `raceScene.RaceScene`：地面/跑道/栅栏/终点门/云/礼花筒粒子系统；相机跟随自身战马（第三人称）、第一人称自由转头环视，以及坠马时自动切入的**第二人称战马回望特写相机**（战马在画面前端回头冷漠目送骑手飞上天）。渲染马匹真实横纵位移 `(x, y, z)`、三维旋转与浮动碰撞文案。
 - **过载颠飞机制（`raceSim.ts` + `RaceScreen.tsx`）**：
   玩家高速连击使马儿加速倍率接近或等于上限（`boost >= 1.55`）时，全屏边缘触发快闪红色呼吸氛围灯警告并浮现“差不多得了，别太颠了！”提示；若持续过载超过连续 3 秒，骑手被烈马彻底颠飞甩下马背，判定该玩家对局失败并在结算中标记置底。
 - `birthScene.BirthScene`：展台 + 相机轨道 + 落地冲击与踉跄失衡物理反馈、平衡恢复后庆祝爆发、按实际包围盒

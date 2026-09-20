@@ -284,25 +284,27 @@ export function RaceScreen({ demo = false }: { demo?: boolean }) {
         </div>
       )}
 
-      {/* 视角切换按钮组 */}
-      <div className="race-view-btns absolute top-3 right-3 flex flex-wrap gap-1.5 sm:gap-2 z-20">
-        <button
-          className={`px-2.5 py-1 sm:px-3.5 sm:py-1.5 text-xs sm:text-sm font-bold border-2 rounded-lg transition-all ${
-            view === "third" ? "bg-[#e2703a] text-white border-[#233140]" : "bg-[#233140]/90 text-white border-white/80"
-          }`}
-          onClick={() => setView("third")}
-        >
-          俯瞰旁观
-        </button>
-        <button
-          className={`px-2.5 py-1 sm:px-3.5 sm:py-1.5 text-xs sm:text-sm font-bold border-2 rounded-lg transition-all ${
-            view === "first" ? "bg-[#e2703a] text-white border-[#233140]" : "bg-[#233140]/90 text-white border-white/80"
-          }`}
-          onClick={() => setView("first")}
-        >
-          第一人称 (V)
-        </button>
-      </div>
+      {/* 视角切换按钮组（颠飞后隐藏以专注第二人称回放） */}
+      {!buckedOff && (
+        <div className="race-view-btns absolute top-3 right-3 flex flex-wrap gap-1.5 sm:gap-2 z-20">
+          <button
+            className={`px-2.5 py-1 sm:px-3.5 sm:py-1.5 text-xs sm:text-sm font-bold border-2 rounded-lg transition-all ${
+              view === "third" ? "bg-[#e2703a] text-white border-[#233140]" : "bg-[#233140]/90 text-white border-white/80"
+            }`}
+            onClick={() => setView("third")}
+          >
+            俯瞰旁观
+          </button>
+          <button
+            className={`px-2.5 py-1 sm:px-3.5 sm:py-1.5 text-xs sm:text-sm font-bold border-2 rounded-lg transition-all ${
+              view === "first" ? "bg-[#e2703a] text-white border-[#233140]" : "bg-[#233140]/90 text-white border-white/80"
+            }`}
+            onClick={() => setView("first")}
+          >
+            第一人称 (V)
+          </button>
+        </div>
+      )}
 
       {/* 极速超载提醒横幅：差不多得了，别太颠了！ */}
       {isDangerZone && !buckedOff && !countdown && !result && (
@@ -317,16 +319,29 @@ export function RaceScreen({ demo = false }: { demo?: boolean }) {
         </div>
       )}
 
-      {/* 颠飞下马出局提示 */}
+      {/* 颠飞下马出局：第二人称动画特写、震感速线与战马回望视界 */}
       {buckedOff && !result && (
-        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 pointer-events-none bg-red-700/95 border-3 border-white text-white p-4 sm:p-6 rounded-2xl shadow-[0_0_40px_rgba(185,28,28,0.95)] text-center animate-bounce w-[92vw] max-w-sm">
-          <div className="text-4xl mb-1">🏇💨💥</div>
-          <div className="text-xl sm:text-2xl font-black text-amber-300">颠飞下马！游戏失败！</div>
-          <div className="text-xs sm:text-sm text-slate-100 mt-1">马儿加速持续过载超过 3 秒，你已被狂颠甩飞下马！</div>
-        </div>
+        <>
+          <div className="buckoff-comic-overlay fixed inset-0 pointer-events-none z-20" />
+          <div className="absolute top-3.5 left-1/2 -translate-x-1/2 z-30 pointer-events-none flex flex-col items-center gap-1 w-[92vw] max-w-xs">
+            <div className="bg-slate-900/95 border-2 border-amber-400 text-amber-300 text-xs sm:text-sm font-black px-3.5 py-1.5 rounded-xl shadow-xl flex items-center gap-2">
+              <span className="text-base">🎥</span>
+              <span>第二人称战马视角</span>
+              <span className="bg-red-600 text-white text-[10px] px-1.5 py-0.5 rounded font-mono font-bold animate-pulse">REC</span>
+            </div>
+            <div className="text-[11px] sm:text-xs text-slate-100 bg-black/80 border border-white/20 px-3 py-1 rounded-full shadow text-center">
+              战马回眸：我就静静看着你螺旋升天…
+            </div>
+          </div>
+          <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 pointer-events-none bg-red-700/95 border-3 border-white text-white p-4 sm:p-6 rounded-2xl shadow-[0_0_40px_rgba(185,28,28,0.95)] text-center animate-bounce w-[92vw] max-w-sm">
+            <div className="text-4xl mb-1">🐎💨💫</div>
+            <div className="text-xl sm:text-2xl font-black text-amber-300">颠飞下马！游戏失败！</div>
+            <div className="text-xs sm:text-sm text-slate-100 mt-1">战马第二人称回眸：四肢狂暴大风车，彻底飞出银河系！</div>
+          </div>
+        </>
       )}
 
-      {!countdown && !result && (
+      {!countdown && !result && !buckedOff && (
         <>
           <div className="absolute bottom-24 sm:bottom-28 left-1/2 -translate-x-1/2 w-[92vw] max-w-xs sm:max-w-sm text-center text-xs sm:text-sm font-bold bg-black/65 text-white px-3.5 py-1.5 rounded-full pointer-events-none backdrop-blur-xs border border-white/20 shadow-lg">
             👆 连续点击屏幕 或 敲击空格 抽打马鞭加速！
@@ -348,9 +363,7 @@ export function RaceScreen({ demo = false }: { demo?: boolean }) {
               />
             </div>
             <div className="text-[11px] sm:text-xs text-slate-300 font-bold">
-              {buckedOff
-                ? "💥 已颠飞下马出局！"
-                : isDangerZone
+              {isDangerZone
                 ? "⚠️ 严重颠簸！即将被颠飞！"
                 : boostRatio > 0.8
                 ? "⚡ 狂暴冲刺！"

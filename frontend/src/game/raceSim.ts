@@ -187,16 +187,20 @@ export function updateRace(state: RaceState, dt: number): RaceState {
   let runners = state.runners.map(r => {
     if (r.finished) return r;
 
-    // 若已经颠飞坠马失败，则马匹迅速减速滑停，骑手继续翻滚抛飞
+    // 若已经颠飞坠马失败，则马匹迅速减速滑停，骑手继续翻滚抛飞升天
     if (r.buckedOff || r.failed) {
-      const riderFlyY = Math.min(25, r.riderFlyY + (18 - r.riderFlyY * 0.4) * dt);
-      const riderFlyX = r.riderFlyX + 12 * dt;
-      const riderFlyRot = r.riderFlyRot + 14 * dt;
+      const riderFlyY = Math.min(35, r.riderFlyY + (20 - r.riderFlyY * 0.3) * dt);
+      const riderFlyX = r.riderFlyX + (12 + r.riderFlyX * 0.3) * dt;
+      const riderFlyRot = r.riderFlyRot + 16 * dt;
       const effectiveSpeed = Math.max(0, r.effectiveSpeed - 180 * dt);
       const x = r.x + effectiveSpeed * dt;
       const phase = (r.phase + (effectiveSpeed / Math.max(1, r.speed)) * (dt / r.period)) % 1;
       const interactionTimer = Math.max(0, r.interactionTimer - dt);
-      const interactionText = interactionTimer > 0 ? r.interactionText : null;
+      let interactionText = r.interactionText;
+      if (interactionTimer > 2.8) interactionText = "颠飞下马！💥";
+      else if (interactionTimer > 1.5) interactionText = "大风车翻滚！🌪️";
+      else if (interactionTimer > 0) interactionText = "化作流星！✨";
+      else interactionText = null;
       return {
         ...r,
         effectiveSpeed,
