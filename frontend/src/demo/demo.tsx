@@ -1,16 +1,17 @@
-// demo.tsx —— dev-only 演示入口：?demo=birth / ?demo=race 直接用合成 model 渲染，
+// demo.tsx —— dev-only 演示入口：?demo=birth / ?demo=race / ?demo=draw 直接用合成 model 渲染，
 // 免多人流程即可目视验证 3D 场景（截图脚本使用）。
 import { useMemo } from "react";
 import { Recognize } from "../game/recognize";
 import { synthParts } from "../game/synth";
 import { BirthScreen } from "../screens/BirthScreen";
 import { RaceScreen } from "../screens/RaceScreen";
+import { DrawScreen } from "../screens/DrawScreen";
 import type { HorseEntry } from "../state/game";
 
 export function isDemoMode(): string | null {
   if (!import.meta.env.DEV) return null;
   const m = new URLSearchParams(location.search).get("demo");
-  return m === "birth" || m === "race" ? m : null;
+  return m === "birth" || m === "race" || m === "draw" ? m : null;
 }
 
 export function DemoApp({ mode }: { mode: string }) {
@@ -28,6 +29,9 @@ export function DemoApp({ mode }: { mode: string }) {
     }));
   }, []);
 
+  if (mode === "draw") {
+    return <DrawScreen />;
+  }
   if (mode === "birth") {
     return <BirthScreenDemo horses={horses} />;
   }

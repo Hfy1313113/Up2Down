@@ -220,44 +220,55 @@ export function BirthScreen({ demo = false }: { demo?: boolean }) {
   const appraisal = getAppraisal(model);
 
   return (
-    <div className="screen birth w-full max-w-4xl mx-auto bg-white border-2 border-[#233140] rounded-xl shadow-[5px_5px_0_rgba(35,49,64,0.9)] p-3 sm:p-6 md:p-8 text-center my-auto flex flex-col gap-2 sm:gap-3.5 transition-all">
+    <div className="screen birth w-full max-w-4xl mx-auto bg-white border-2 border-[#233140] rounded-xl shadow-[5px_5px_0_rgba(35,49,64,0.9)] p-3 sm:p-5 md:p-7 text-center my-auto flex flex-col gap-2 sm:gap-2.5 transition-all">
+      {/* 顶部标题栏 */}
+      <div className="flex items-center justify-between px-1">
+        <h2 className="text-sm sm:text-lg md:text-xl font-black text-[#233140] tracking-tight">
+          机体装配完成 · 运动学检阅
+        </h2>
+        <span className="text-[11px] sm:text-xs text-slate-500 font-medium">
+          可手指/鼠标拖拽 360° 旋转
+        </span>
+      </div>
+
+      {/* 3D 展台 */}
       <div
         ref={stageRef}
-        className="birth-stage3d relative w-full h-[260px] sm:h-[340px] md:h-[420px] rounded-lg border-2 border-[#233140] shadow-[3px_3px_0_#233140] overflow-hidden select-none touch-none cursor-grab active:cursor-grabbing bg-gradient-to-b from-[#dae7f2] to-[#edf4f9]"
+        className="birth-stage3d relative w-full h-[220px] sm:h-[300px] md:h-[380px] rounded-lg border-2 border-[#233140] shadow-[3px_3px_0_#233140] overflow-hidden select-none touch-none cursor-grab active:cursor-grabbing bg-gradient-to-b from-[#dae7f2] to-[#edf4f9]"
       >
         <canvas ref={canvasRef} className="birth-canvas3d w-full h-full block" />
         <canvas ref={confRef} className="birth-confetti absolute inset-0 w-full h-full pointer-events-none" />
-        <div className="birth-text absolute top-2.5 sm:top-3 left-1/2 -translate-x-1/2 bg-white/90 border-2 border-[#233140] px-3 py-1 rounded-md text-xs sm:text-base font-extrabold shadow-[2px_2px_0_#233140] pointer-events-none whitespace-nowrap">
-          机体装配完成 · 运动学检阅
-        </div>
       </div>
-      <p className="text-slate-500 text-xs sm:text-sm font-medium">按住左键/手指拖拽旋转机体，滚轮缩放查看关节点</p>
 
+      {/* 体检报告卡片 */}
       {appraisal && (
-        <div className="w-full max-w-lg mx-auto bg-[#fdfcf9] border-2 border-dashed border-slate-600 rounded-lg p-3 sm:p-4 text-left shadow-[3px_3px_0_rgba(71,85,105,0.25)] flex flex-col gap-1.5 text-xs sm:text-sm">
-          <div className="flex justify-between items-center pb-2 border-b border-slate-200">
-            <span className="font-extrabold text-slate-800 font-mono">
-              生物力学检定报告：{appraisal.title}
+        <div className="w-full max-w-lg mx-auto bg-[#fdfcf9] border-2 border-dashed border-slate-600 rounded-lg p-2 sm:p-3 text-left shadow-[2px_2px_0_rgba(71,85,105,0.25)] flex flex-col gap-1 text-xs sm:text-sm">
+          <div className="flex items-center justify-between gap-2 pb-1 border-b border-slate-200">
+            <span className="font-extrabold text-slate-800 font-mono text-xs sm:text-sm truncate">
+              力学体检：{appraisal.title}
             </span>
-            <span className="bg-slate-900 text-slate-100 text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded">
+            <span className="bg-slate-900 text-slate-100 text-[10px] sm:text-xs font-bold px-1.5 py-0.5 rounded shrink-0">
               {appraisal.grade}
             </span>
           </div>
-          <div className="text-slate-700"><b>解剖特征：</b>{appraisal.trait}</div>
-          <div className="text-slate-700"><b>临床会诊：</b>{appraisal.docComment}</div>
+          <div className="text-slate-700 text-[11px] sm:text-xs leading-snug"><b>解剖特征：</b>{appraisal.trait}</div>
+          <div className="text-slate-700 text-[11px] sm:text-xs leading-snug"><b>会诊结论：</b>{appraisal.docComment}</div>
         </div>
       )}
 
-      <p className="text-slate-500 text-xs sm:text-sm font-medium">
-        {remain > 0 ? `出栏检阅中… ${remain}s 后允许起跑` : "所有关节已就绪，随时可放行出栏"}
-      </p>
-      <button
-        disabled={!canEnter}
-        onClick={finish}
-        className="primary w-full sm:w-auto px-6 py-2.5 sm:py-3 text-sm sm:text-base font-bold text-white bg-[#2ea043] hover:bg-[#278839] border-2 border-[#233140] rounded-lg shadow-[3px_3px_0_#233140] active:translate-x-0.5 active:translate-y-0.5 disabled:bg-slate-300 disabled:border-slate-400 disabled:cursor-not-allowed mx-auto transition-all"
-      >
-        确认出栏起跑
-      </button>
+      {/* 底部放行出栏按钮 */}
+      <div className="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-3 mt-0.5">
+        <p className="text-slate-500 text-[11px] sm:text-xs font-medium m-0">
+          {remain > 0 ? `出栏准备中… ${remain}s 后放行` : "关节点校准就绪，随时放行！"}
+        </p>
+        <button
+          disabled={!canEnter}
+          onClick={finish}
+          className="primary px-5 py-1.5 sm:py-2 text-xs sm:text-sm font-bold border-2 border-[#233140] rounded-lg shadow-[3px_3px_0_#233140] active:translate-x-0.5 active:translate-y-0.5 disabled:cursor-not-allowed transition-all"
+        >
+          {canEnter ? "确认出栏起跑 🏁" : `检阅中 (${remain}s)`}
+        </button>
+      </div>
     </div>
   );
 }

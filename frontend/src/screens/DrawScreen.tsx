@@ -3,13 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Recognize } from "../game/recognize";
 import { useGame, finishCurrentPart as finishPartState, prepareBirth } from "../state/game";
-import { LOGICAL_W, LOGICAL_H, PARTS, useDrawCanvas, type Part } from "./useDrawCanvas";
-
-const PART_HINTS: Record<Part, string> = {
-  legs: "【第 1 步·腿部】：⚠️躯干会自动生成，请勿绘制躯干！仅在下方绿色框画 4 条带弯折的腿（拐点识别为膝关节）。大腿:小腿≈1.05:1 跑得最快，切勿在此画头或尾巴！",
-  head: "【第 2 步·头部】：⚠️仅在右上方蓝色框画出马脖子、头与耳朵！头部高度与前伸量决定重心与俯仰，切勿在此画腿或尾巴！",
-  butt: "【第 3 步·屁股】：⚠️仅在左侧橙色框画出臀部轮廓与尾巴！尾线决定后肢发力与阻尼，切勿在此画头或腿！",
-};
+import { LOGICAL_W, LOGICAL_H, PARTS, useDrawCanvas, type Part, PART_LABEL } from "./useDrawCanvas";
 
 const PART_LABELS: Record<Part, string> = {
   legs: "1. 腿部连杆",
@@ -49,12 +43,12 @@ export function DrawScreen() {
   };
 
   const onPreview = (v: boolean) => { setPreview(v); d.setPreview(v); };
-  const currentHint = PART_HINTS[d.part];
 
   return (
-    <div className="w-full max-w-5xl mx-auto bg-white border-2 border-[#233140] rounded-xl shadow-[5px_5px_0_rgba(35,49,64,0.9)] p-3 sm:p-5 md:p-7 text-center my-auto flex flex-col gap-2 sm:gap-3 transition-all">
-      <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
-        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+    <div className="w-full max-w-5xl mx-auto bg-white border-2 border-[#233140] rounded-xl shadow-[5px_5px_0_rgba(35,49,64,0.9)] p-2.5 sm:p-5 md:p-7 text-center my-auto flex flex-col gap-2 sm:gap-2.5 transition-all">
+      {/* 顶部栏：部位标签与倒计时保持在单行自适应，坚决不折行挤压 */}
+      <div className="flex items-center justify-between gap-1.5 sm:gap-3">
+        <div className="grid grid-cols-3 gap-1 sm:gap-2 flex-1">
           {PARTS.map(p => {
             const isActive = p === d.part;
             const isDone = finished.includes(p);
@@ -64,65 +58,80 @@ export function DrawScreen() {
             return (
               <button
                 key={p}
-                className={`px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-lg border-2 border-[#233140] text-xs sm:text-sm font-bold shadow-[2px_2px_0_#233140] active:translate-x-0.5 active:translate-y-0.5 transition-all ${cls}`}
+                className={`part-tab py-1 px-1 sm:px-3 sm:py-2 rounded-lg border-2 border-[#233140] text-xs sm:text-sm font-bold shadow-[2px_2px_0_#233140] active:translate-x-0.5 active:translate-y-0.5 transition-all text-center truncate ${cls}`}
                 onClick={() => d.setPartTab(p)}
               >
-                {PART_LABELS[p]}{isDone ? " ✓" : ""}
+                <span className="sm:hidden">{PART_LABEL[p]}{isDone ? " ✓" : ""}</span>
+                <span className="hidden sm:inline">{PART_LABELS[p]}{isDone ? " ✓" : ""}</span>
               </button>
             );
           })}
         </div>
-        <div className="text-lg sm:text-2xl font-black font-mono px-3 py-1 bg-slate-100 border border-slate-300 rounded-lg shadow-inner shrink-0">
+        <div className="text-base sm:text-2xl font-black font-mono px-2.5 py-1 bg-slate-100 border border-slate-300 rounded-lg shadow-inner shrink-0 min-w-[50px] text-center">
           <span className={g.partLeft <= 10 ? "text-red-600 animate-pulse" : "text-[#233140]"}>{g.partLeft}</span>s
         </div>
       </div>
 
-      <div className="w-full p-2.5 sm:p-3 bg-emerald-50 border-2 border-emerald-500 rounded-lg shadow-[2px_2px_0_#15803d] flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3 text-left text-xs sm:text-sm leading-relaxed">
-        <span className="bg-emerald-600 text-white text-xs font-black px-2 py-0.5 rounded shrink-0">
-          重要提示
-        </span>
-        <div className="text-slate-800">
-          <b>马儿躯干为系统自动生成，玩家绝对无需绘制躯干！</b>
-          请仅在当前部位的虚线框内绘制：
-          {d.part === "legs" && <span className="block font-bold text-emerald-800 mt-0.5">【腿部】：从虚线躯干下方画 4 条带膝关节的长腿，切勿画头或尾巴！</span>}
-          {d.part === "head" && <span className="block font-bold text-emerald-800 mt-0.5">【头部】：在右上方画出向右伸展的脖子与马头，切勿画腿或尾巴！</span>}
-          {d.part === "butt" && <span className="block font-bold text-emerald-800 mt-0.5">【屁股】：在左侧画出臀线与尾巴线条，切勿画头或腿！</span>}
+      {/* 紧凑型指引提示条，消除长文本双重重复堆叠 */}
+      <div className="w-full px-2.5 py-1.5 sm:py-2 bg-emerald-50 border-2 border-emerald-500 rounded-lg shadow-[2px_2px_0_#15803d] flex items-center justify-between gap-2 text-left text-xs sm:text-sm">
+        <div className="flex items-center gap-1.5 sm:gap-2 text-slate-800 leading-snug">
+          <span className="bg-emerald-600 text-white text-[10px] sm:text-xs font-black px-1.5 py-0.5 rounded shrink-0">
+            免画躯干
+          </span>
+          <span className="truncate sm:whitespace-normal">
+            {d.part === "legs" && "在下方绿框画 4 条带膝弯的长腿（躯干系统自动生成）"}
+            {d.part === "head" && "在右上方蓝框画脖子、马头与耳朵（斜向右上伸展）"}
+            {d.part === "butt" && "在左侧橙框画出臀部轮廓与尾巴线条（无需画腿与头）"}
+          </span>
         </div>
+        {g.partLeft <= 10 && (
+          <span className="text-red-600 font-bold text-xs shrink-0 animate-pulse hidden sm:inline whitespace-nowrap">
+            ⏳ 倒计时即将结束！
+          </span>
+        )}
       </div>
 
       {g.partLeft <= 10 && (
-        <div className="text-red-600 font-bold text-xs sm:text-sm animate-pulse">
+        <div className="sm:hidden text-red-600 font-bold text-[11px] animate-pulse">
           ⏳ 倒计时快结束了：差不多得了，凑合凑合也能跑！
         </div>
       )}
 
+      {/* 画布容器 */}
       <div className="w-full rounded-lg overflow-hidden border-2 border-[#233140] shadow-[3px_3px_0_#233140] bg-[#fcfbf7]">
-        <canvas ref={d.canvasRef} width={LOGICAL_W} height={LOGICAL_H} className="draw-canvas w-full aspect-[960/640] max-h-[46vh] sm:max-h-[56vh] object-contain block touch-none cursor-crosshair" />
+        <canvas
+          ref={d.canvasRef}
+          width={LOGICAL_W}
+          height={LOGICAL_H}
+          className="draw-canvas w-full aspect-[960/640] max-h-[44vh] sm:max-h-[55vh] object-contain block touch-none cursor-crosshair"
+        />
       </div>
 
-      <p className="text-slate-600 text-xs sm:text-sm font-medium px-1 text-center">{currentHint}</p>
-      <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 my-1">
-        <button
-          onClick={d.undo}
-          className="px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-bold text-white bg-slate-600 hover:bg-slate-700 border-2 border-[#233140] rounded-lg shadow-[2px_2px_0_#233140] active:translate-x-0.5 active:translate-y-0.5 transition-all"
-        >
-          撤销
-        </button>
-        <button
-          onClick={d.clear}
-          className="px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-bold text-white bg-slate-600 hover:bg-slate-700 border-2 border-[#233140] rounded-lg shadow-[2px_2px_0_#233140] active:translate-x-0.5 active:translate-y-0.5 transition-all"
-        >
-          清空本部位
-        </button>
-        <label className="flex items-center gap-1.5 text-xs sm:text-sm font-bold text-slate-700 cursor-pointer select-none">
-          <input type="checkbox" checked={preview} onChange={e => onPreview(e.target.checked)} className="rounded" />
-          连杆骨骼预览
-        </label>
+      {/* 底部工具操作栏：撤销、清空、骨骼预览与完成按钮两端对齐排版 */}
+      <div className="flex items-center justify-between gap-1.5 sm:gap-3 my-0.5 sm:my-1">
+        <div className="flex items-center gap-1 sm:gap-2">
+          <button
+            onClick={d.undo}
+            className="px-2.5 py-1 sm:px-3.5 sm:py-1.5 text-xs sm:text-sm font-bold text-white bg-slate-600 hover:bg-slate-700 border-2 border-[#233140] rounded-lg shadow-[2px_2px_0_#233140] active:translate-x-0.5 active:translate-y-0.5 transition-all"
+          >
+            撤销
+          </button>
+          <button
+            onClick={d.clear}
+            className="px-2.5 py-1 sm:px-3.5 sm:py-1.5 text-xs sm:text-sm font-bold text-white bg-slate-600 hover:bg-slate-700 border-2 border-[#233140] rounded-lg shadow-[2px_2px_0_#233140] active:translate-x-0.5 active:translate-y-0.5 transition-all"
+          >
+            清空
+          </button>
+          <label className="flex items-center gap-1 text-xs font-bold text-slate-700 cursor-pointer select-none ml-1">
+            <input type="checkbox" checked={preview} onChange={e => onPreview(e.target.checked)} className="rounded" />
+            <span className="hidden sm:inline">连杆</span>骨骼预览
+          </label>
+        </div>
         <button
           onClick={doFinishPart}
-          className="px-4 py-1.5 sm:px-5 sm:py-2 text-xs sm:text-sm font-bold text-white bg-[#2ea043] hover:bg-[#278839] border-2 border-[#233140] rounded-lg shadow-[3px_3px_0_#233140] active:translate-x-0.5 active:translate-y-0.5 transition-all"
+          className="primary px-3 py-1 sm:px-5 sm:py-1.5 text-xs sm:text-sm font-bold text-white bg-[#2ea043] hover:bg-[#278839] border-2 border-[#233140] rounded-lg shadow-[3px_3px_0_#233140] active:translate-x-0.5 active:translate-y-0.5 transition-all shrink-0"
         >
-          完成本部位{d.part === "butt" ? "并提交" : ""}
+          {d.part === "butt" ? "完成本部位并提交" : "完成本部位"}
         </button>
       </div>
       {g.doneNames.length > 0 && (
