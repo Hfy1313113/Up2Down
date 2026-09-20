@@ -220,27 +220,44 @@ export function BirthScreen({ demo = false }: { demo?: boolean }) {
   const appraisal = getAppraisal(model);
 
   return (
-    <div className="screen birth">
-      <div ref={stageRef} className="birth-stage3d">
-        <canvas ref={canvasRef} className="birth-canvas3d" />
-        <canvas ref={confRef} className="birth-confetti" />
-        <div className="birth-text">机体装配完成 · 运动学检阅</div>
+    <div className="screen birth w-full max-w-4xl mx-auto bg-white border-2 border-[#233140] rounded-xl shadow-[5px_5px_0_rgba(35,49,64,0.9)] p-3 sm:p-6 md:p-8 text-center my-auto flex flex-col gap-2 sm:gap-3.5 transition-all">
+      <div
+        ref={stageRef}
+        className="birth-stage3d relative w-full h-[260px] sm:h-[340px] md:h-[420px] rounded-lg border-2 border-[#233140] shadow-[3px_3px_0_#233140] overflow-hidden select-none touch-none cursor-grab active:cursor-grabbing bg-gradient-to-b from-[#dae7f2] to-[#edf4f9]"
+      >
+        <canvas ref={canvasRef} className="birth-canvas3d w-full h-full block" />
+        <canvas ref={confRef} className="birth-confetti absolute inset-0 w-full h-full pointer-events-none" />
+        <div className="birth-text absolute top-2.5 sm:top-3 left-1/2 -translate-x-1/2 bg-white/90 border-2 border-[#233140] px-3 py-1 rounded-md text-xs sm:text-base font-extrabold shadow-[2px_2px_0_#233140] pointer-events-none whitespace-nowrap">
+          机体装配完成 · 运动学检阅
+        </div>
       </div>
-      <p className="hint">按住左键拖拽旋转机体，滚轮缩放查看关节点</p>
+      <p className="text-slate-500 text-xs sm:text-sm font-medium">按住左键/手指拖拽旋转机体，滚轮缩放查看关节点</p>
 
       {appraisal && (
-        <div className="appraisal-card">
-          <div className="appraisal-header">
-            <span className="appraisal-title">生物力学检定报告：{appraisal.title}</span>
-            <span className="appraisal-grade">{appraisal.grade}</span>
+        <div className="w-full max-w-lg mx-auto bg-[#fdfcf9] border-2 border-dashed border-slate-600 rounded-lg p-3 sm:p-4 text-left shadow-[3px_3px_0_rgba(71,85,105,0.25)] flex flex-col gap-1.5 text-xs sm:text-sm">
+          <div className="flex justify-between items-center pb-2 border-b border-slate-200">
+            <span className="font-extrabold text-slate-800 font-mono">
+              生物力学检定报告：{appraisal.title}
+            </span>
+            <span className="bg-slate-900 text-slate-100 text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded">
+              {appraisal.grade}
+            </span>
           </div>
-          <div className="appraisal-row"><b>解剖特征：</b>{appraisal.trait}</div>
-          <div className="appraisal-row"><b>临床会诊：</b>{appraisal.docComment}</div>
+          <div className="text-slate-700"><b>解剖特征：</b>{appraisal.trait}</div>
+          <div className="text-slate-700"><b>临床会诊：</b>{appraisal.docComment}</div>
         </div>
       )}
 
-      <p className="birth-timer">{remain > 0 ? `出栏检阅中… ${remain}s 后允许起跑` : "所有关节已就绪，随时可放行出栏"}</p>
-      <button className="primary" disabled={!canEnter} onClick={finish}>确认出栏起跑</button>
+      <p className="text-slate-500 text-xs sm:text-sm font-medium">
+        {remain > 0 ? `出栏检阅中… ${remain}s 后允许起跑` : "所有关节已就绪，随时可放行出栏"}
+      </p>
+      <button
+        disabled={!canEnter}
+        onClick={finish}
+        className="primary w-full sm:w-auto px-6 py-2.5 sm:py-3 text-sm sm:text-base font-bold text-white bg-[#2ea043] hover:bg-[#278839] border-2 border-[#233140] rounded-lg shadow-[3px_3px_0_#233140] active:translate-x-0.5 active:translate-y-0.5 disabled:bg-slate-300 disabled:border-slate-400 disabled:cursor-not-allowed mx-auto transition-all"
+      >
+        确认出栏起跑
+      </button>
     </div>
   );
 }

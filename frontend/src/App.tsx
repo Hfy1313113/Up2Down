@@ -14,16 +14,26 @@ export default function App() {
   useEffect(() => { if (!demo) wireTransport(); }, [demo]);
   if (demo) return <DemoApp mode={demo} />;
 
-  switch (g.phase) {
-    case "draw":
-      return <DrawScreen />;
-    case "birth":
-      return <BirthScreen />;
-    case "waiting":
-      return <WaitingScreen />;
-    case "race":
-      return <RaceScreen />;
-    default:
-      return <LobbyScreen />;
+  if (g.phase === "race") {
+    return <RaceScreen />;
   }
+
+  return (
+    <div className="min-h-screen w-full flex flex-col items-center justify-center p-2 sm:p-4 md:p-6 overflow-x-hidden">
+      <main className="w-full flex flex-col items-center justify-center my-auto">
+        {(() => {
+          switch (g.phase) {
+            case "draw":
+              return <DrawScreen />;
+            case "birth":
+              return <BirthScreen />;
+            case "waiting":
+              return <WaitingScreen />;
+            default:
+              return <LobbyScreen />;
+          }
+        })()}
+      </main>
+    </div>
+  );
 }
