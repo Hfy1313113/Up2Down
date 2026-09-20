@@ -45,6 +45,25 @@ function playWhipSound() {
   } catch {}
 }
 
+function playBlastSound() {
+  try {
+    const Ctx = window.AudioContext ?? (window as any).webkitAudioContext;
+    const audioCtx = new Ctx();
+    if (audioCtx.state === "suspended") void audioCtx.resume();
+    const t0 = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = "triangle";
+    osc.frequency.setValueAtTime(170, t0);
+    osc.frequency.exponentialRampToValueAtTime(26, t0 + 0.45);
+    gain.gain.setValueAtTime(0.4, t0);
+    gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.5);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start(t0);
+    osc.stop(t0 + 0.52);
+  } catch {}
+}
+
 function playBuckedOffSound() {
   try {
     const Ctx = window.AudioContext ?? (window as any).webkitAudioContext;
@@ -197,7 +216,11 @@ export function RaceScreen({ demo = false }: { demo?: boolean }) {
         }
       }
 
-      if (raceRef.current.over) {
+      const myFlightDone = me?.buckedOff && me.interactionTimer <= 0;
+
+      // 当全场完赛，或者自身已被颠飞且 3.2 秒升天动画已完全播放完毕时，炸裂弹出结算页面
+      if ((raceRef.current.over || myFlightDone) && !result) {
+        playBlastSound();
         const rank = ranking(raceRef.current);
         const winner = rank.find(r => !r.failed);
         setResult({
@@ -381,11 +404,20 @@ export function RaceScreen({ demo = false }: { demo?: boolean }) {
         </div>
       ))}
 
-      {/* 竞速结算弹窗：固定全屏遮罩 + 绝对居中弹性布局，彻底避免移动端偏位或遮挡 */}
+      {/* 竞速结算弹窗：动态炸裂弹出动效 + 冲击波粒子光环 */}
       {result && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/50 backdrop-blur-xs pointer-events-auto">
-          <div className="race-banner w-full max-w-sm sm:max-w-md bg-white border-3 border-[#233140] rounded-2xl p-4 sm:p-7 shadow-[8px_8px_0_rgba(35,49,64,0.95)] text-center max-h-[90vh] overflow-y-auto">
-            <h2 className="text-2xl sm:text-3xl font-black text-[#233140] mb-2">竞速结算</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/60 backdrop-blur-sm pointer-events-auto overflow-hidden">
+          {/* 炸裂冲击波光环 */}
+          <div className="banner-blast-shockwave absolute w-64 h-64 rounded-full border-4 border-amber-400 pointer-events-none" />
+          <div className="banner-blast-shockwave absolute w-48 h-48 rounded-full border-2 border-red-500 pointer-events-none" />
+
+          {/* 动态炸裂弹出的卡片主体 */}
+          <div className="race-banner animate-banner-blast w-full max-w-sm sm:max-w-md bg-white border-4 border-[#233140] rounded-2xl p-4 sm:p-7 shadow-[10px_10px_0_rgba(35,49,64,0.95)] text-center max-h-[90vh] overflow-y-auto relative z-10">
+            <h2 className="text-2xl sm:text-3xl font-black text-[#233140] mb-2 flex items-center justify-center gap-2">
+              <span>💥</span>
+              <span>竞速结算</span>
+              <span>💥</span>
+            </h2>
             <p className="text-slate-600 text-xs sm:text-sm mb-3">
               {result.name !== "无人完赛" ? (
                 <>

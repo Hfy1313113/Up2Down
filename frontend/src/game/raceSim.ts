@@ -168,7 +168,7 @@ export function setRunnerBuckedOff(state: RaceState, runnerId: string): RaceStat
       dangerDuration: 0,
       effectiveSpeed: 0,
       interactionText: "颠飞下马！💥",
-      interactionTimer: 4.0,
+      interactionTimer: 4.5,
       riderFlyY: 0.5,
       riderFlyRot: 0.5,
     };
@@ -197,7 +197,7 @@ export function updateRace(state: RaceState, dt: number): RaceState {
       const phase = (r.phase + (effectiveSpeed / Math.max(1, r.speed)) * (dt / r.period)) % 1;
       const interactionTimer = Math.max(0, r.interactionTimer - dt);
       let interactionText = r.interactionText;
-      if (interactionTimer > 2.8) interactionText = "颠飞下马！💥";
+      if (interactionTimer > 3.0) interactionText = "颠飞下马！💥";
       else if (interactionTimer > 1.5) interactionText = "大风车翻滚！🌪️";
       else if (interactionTimer > 0) interactionText = "化作流星！✨";
       else interactionText = null;
@@ -324,7 +324,7 @@ export function updateRace(state: RaceState, dt: number): RaceState {
       launchedTimer,
       cooldownTimer,
       interactionText,
-      interactionTimer: buckedOff ? 4.0 : interactionTimer,
+      interactionTimer: buckedOff ? 4.5 : interactionTimer,
       effectiveSpeed,
       x,
       z,
@@ -424,7 +424,8 @@ export function updateRace(state: RaceState, dt: number): RaceState {
     if (r.finishTime != null) {
       if (leaderDone === null || r.finishTime < leaderDone) leaderDone = r.finishTime;
     }
-    const settled = r.finished || r.failed;
+    // 颠飞出局者需完整播放抛射升天动画后（interactionTimer 归零）才算结算完成
+    const settled = r.finished || (r.failed && r.interactionTimer <= 0);
     allDone = allDone && settled;
   }
   const over = allDone || (leaderDone !== null && time - leaderDone > 10);
