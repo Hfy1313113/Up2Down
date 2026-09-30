@@ -6,7 +6,7 @@
 
 分部位接力绘画 · 3D 双关节物理步态 · 实时 WebRTC 直连 · 最多 4 人同屏竞速
 
-[![在线游玩](https://img.shields.io/badge/🎮_立即在线开玩-up2down.arr2018.dpdns.org-ff6b35?style=for-the-badge&logo=google-chrome&logoColor=white)](https://up2down.arr2018.dpdns.org)
+[![在线游玩](https://img.shields.io/badge/🎮_立即在线开玩-up2down.plutokeating.beer-ff6b35?style=for-the-badge&logo=google-chrome&logoColor=white)](https://up2down.plutokeating.beer)
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg?style=flat-square)](LICENSE)
 [![Players](https://img.shields.io/badge/玩家人数-1~4%20人-4caf50.svg?style=flat-square)](#-游戏特色)
@@ -130,7 +130,7 @@ $$\text{最终速度} = \text{步幅}(L) \times \text{步频}\left(\frac{1}{\sqr
 
 无需下载安装任何软件，使用 Chrome、Edge、Safari 或 Firefox 等现代浏览器直接访问：
 
-👉 **[https://up2down.arr2018.dpdns.org](https://up2down.arr2018.dpdns.org)**
+👉 **[https://up2down.plutokeating.beer](https://up2down.plutokeating.beer)**
 
 > [!TIP]
 > **一个人也能玩**：用同一个浏览器开 1 个普通标签页 + 1 个隐身窗口（或两个不同浏览器），输入同一个房间号，就能单机体验完整 2 人联机全流程！
@@ -224,7 +224,7 @@ npx wrangler login
 npx wrangler deploy
 ```
 
-部署完成后，访问绑定的生产域名（默认 `https://up2down.arr2018.dpdns.org`）即可开局。
+部署完成后，访问绑定的生产域名（默认 `https://up2down.plutokeating.beer`）即可开局。
 
 ---
 

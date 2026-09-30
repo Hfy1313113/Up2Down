@@ -30,7 +30,7 @@ node scripts/timeout-verify.mjs  # 超时兜底事件（含房主断线、round_
 ## 部署
 
 - Cloudflare 项目名：`up2down`
-- 生产域名（唯一公开域名）：`https://up2down.arr2018.dpdns.org`
+- 生产域名（唯一公开域名）：`https://up2down.plutokeating.beer`
 
 ```bash
 cd ../frontend && npm run build  # 必须先构建：dist 会被打包进 Worker
@@ -40,7 +40,7 @@ npx wrangler deploy              # 部署到 up2down
 npx wrangler deploy --dry-run    # 只构建校验，不上传
 ```
 
-部署后 https://up2down.arr2018.dpdns.org 即完整站点：`/` 前端、`/rooms/<房间号>` 信令，
+部署后 https://up2down.plutokeating.beer 即完整站点：`/` 前端、`/rooms/<房间号>` 信令，
 不需要额外配置前端地址变量。
 
 ## 配置
