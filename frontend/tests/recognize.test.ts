@@ -45,6 +45,46 @@ describe("Recognize.analyzeParts", () => {
     expect(model.tail!.x).toBeLessThan(model.torso.cx);
   });
 
+  it("头部识别：脖子两端分离、朝向指向右上、识别出双耳尖", () => {
+    const model = Recognize.analyzeParts(synthParts());
+    const H = model.head;
+    expect(H.found).toBe(true);
+    // 脖子根（neckBase）应在脖子头端（neckX/neckY）的左下（靠躯干）
+    expect(H.neckBaseX!).toBeLessThan(H.neckX);
+    expect(H.neckBaseY!).toBeLessThan(H.neckY);
+    // 朝向单位向量：指向右上（本地系 y 向上）
+    expect(H.dirX!).toBeGreaterThan(0.3);
+    expect(H.dirY!).toBeGreaterThan(0.3);
+    expect(Math.hypot(H.dirX!, H.dirY!)).toBeCloseTo(1, 5);
+    // 合成数据画了 2 个耳尖，且耳尖在头心上方
+    expect(H.earTips).toHaveLength(2);
+    for (const tip of H.earTips!) expect(tip[1]).toBeGreaterThan(H.y);
+  });
+
+  it("屁股识别：尾巴曲线尾根靠近躯干、尾尖在后方，摆动幅度合法", () => {
+    const model = Recognize.analyzeParts(synthParts());
+    const T = model.tail!;
+    expect(T.found).toBe(true);
+    expect(T.curve).toBeDefined();
+    expect(T.curve!.length).toBe(8);
+    // 尾根比尾尖更靠近躯干前部（x 更大）
+    const tip = T.curve![T.curve!.length - 1];
+    expect(T.x).toBeGreaterThan(tip[0]);
+    // 整条尾巴在躯干中心后方
+    for (const [x] of T.curve!) expect(x).toBeLessThan(model.torso.cx);
+    expect(T.swing!).toBeGreaterThanOrEqual(0);
+    expect(T.swing!).toBeLessThanOrEqual(1);
+  });
+
+  it("缺头缺屁股 → found=false，网格层将使用默认头尾", () => {
+    const model = Recognize.analyzeParts({ legs: synthParts().legs, head: [], butt: [] });
+    expect(model.head.found).toBe(false);
+    expect(model.tail!.found).toBe(false);
+    expect(model.tail!.curve ?? []).toHaveLength(0);
+    // 头/尾字段仍有合理缺省，网格层不会崩
+    expect(model.head.dirX ?? 1).toBeGreaterThan(0);
+  });
+
   it("归一化后腿长与躯干等比（腿长≈髋高，足以触地）", () => {
     const model = Recognize.analyzeParts(synthParts({ legLen: 150, ratio: 1.05 }));
     for (const leg of model.legs) {

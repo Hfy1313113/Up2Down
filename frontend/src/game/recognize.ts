@@ -341,6 +341,143 @@ function fallbackModel(): HorseModel {
 // 躯干为一条线，由髋部自动生成，无需绘制。
 interface RawLeg { hip: Vec2; knee: Vec2; foot: Vec2; L1: number; L2: number; quality: number; synthesized: boolean; }
 
+// ---------- 头颈分析 ----------
+// 从头部笔画中分离「脖子」与「头部」，提取脖子两端、头部中心、
+// 朝向单位向量（画布坐标 y 向下）与耳尖（最多 2 个）。
+interface HeadDetail {
+  neckBase: Vec2;   // 脖子根（靠躯干端）
+  neckEnd: Vec2;    // 脖子头端（靠头端）
+  cx: number; cy: number;  // 头部中心（画布坐标）
+  size: number;
+  dir: Vec2;        // 头朝向单位向量（画布坐标）
+  earTips: Vec2[];  // 耳尖（画布坐标）
+}
+
+function analyzeHead(strokes: Stroke[], anchor: Vec2): HeadDetail | null {
+  if (!strokes.length) return null;
+
+  // 1) 离躯干前锚点最近的点所在笔画 = 脖子笔画
+  let neckStroke = strokes[0], bestD = Infinity;
+  for (const s of strokes) {
+    for (const p of s.points) {
+      const d = Math.hypot(p[0] - anchor[0], p[1] - anchor[1]);
+      if (d < bestD) { bestD = d; neckStroke = s; }
+    }
+  }
+  const others = strokes.filter(s => s !== neckStroke);
+  const pts = neckStroke.points;
+  const first = pts[0], last = pts[pts.length - 1];
+
+  // 2) 判断脖子笔画哪端靠头：用其它笔画质心；单笔画时用「离锚点更远的那端」
+  let headSide: Vec2;
+  if (others.length) {
+    let sx = 0, sy = 0, n = 0;
+    for (const s of others) for (const [x, y] of s.points) { sx += x; sy += y; n++; }
+    headSide = [sx / n, sy / n];
+  } else {
+    headSide = Math.hypot(first[0] - anchor[0], first[1] - anchor[1]) >=
+               Math.hypot(last[0] - anchor[0], last[1] - anchor[1]) ? first : last;
+  }
+  const neckEnd = headSide === first ? first : last;
+  const neckBase = headSide === first ? last : first;
+
+  // 3) 头点云：其它笔画全部 + 脖子笔画靠头端的 35% 弧长
+  const cloud: Vec2[] = [];
+  for (const s of others) for (const p of s.points) cloud.push(p);
+  {
+    const iEnd = neckEnd === first ? 0 : pts.length - 1;
+    const step = iEnd === 0 ? 1 : -1;
+    let acc = 0;
+    for (let i = iEnd; ; i += step) {
+      const j = i + step;
+      if (j < 0 || j >= pts.length) break;
+      acc += Math.hypot(pts[j][0] - pts[i][0], pts[j][1] - pts[i][1]);
+      if (acc > arcLength(pts) * 0.35) break;
+      cloud.push(pts[j]);
+    }
+  }
+  if (!cloud.length) return null;
+  let cx = 0, cy = 0;
+  for (const [x, y] of cloud) { cx += x; cy += y; }
+  cx /= cloud.length; cy /= cloud.length;
+  const b = strokeBBox(cloud);
+  const size = Math.max(Math.max(b.w, b.h) * 0.6, 10);
+
+  // 4) 朝向：头心 − 脖子根（画布坐标，y 向下）
+  let dx = cx - neckBase[0], dy = cy - neckBase[1];
+  const m = Math.hypot(dx, dy);
+  if (m < 4) { dx = 0.7; dy = -0.7; } else { dx /= m; dy /= m; }
+
+  // 5) 耳尖：短笔画顶端 或 长笔画上的尖锐上凸峰
+  const earTips: Vec2[] = [];
+  const consider = (p: Vec2) => {
+    if (p[1] > cy - size * 0.12) return;                        // 必须明显高于头心
+    if (Math.hypot(p[0] - cx, p[1] - cy) < size * 0.35) return; // 在头轮廓之外
+    if (earTips.some(t => Math.hypot(t[0] - p[0], t[1] - p[1]) < size * 0.25)) return;
+    earTips.push(p);
+  };
+  for (const s of strokes) {
+    const len = arcLength(s.points);
+    if (len < size * 1.2 && s.points.length >= 2) {
+      let top = s.points[0];
+      for (const p of s.points) if (p[1] < top[1]) top = p;
+      consider(top);
+    } else if (s.points.length >= 7) {
+      const rs = resample(s.points, 40);
+      for (let i = 4; i < rs.length - 4; i++) {
+        if (rs[i][1] >= rs[i - 1][1] || rs[i][1] >= rs[i + 1][1]) continue;
+        let lo = Infinity;
+        for (let k = i - 4; k <= i + 4; k++) if (k !== i) lo = Math.min(lo, rs[k][1]);
+        if (lo - rs[i][1] > size * 0.1) consider(rs[i]);
+      }
+    }
+    if (earTips.length >= 2) break;
+  }
+
+  return { neckBase, neckEnd, cx, cy, size, dir: [dx, dy], earTips: earTips.slice(0, 2) };
+}
+
+// ---------- 屁股分析 ----------
+// 分离「臀线」（贴髋部，决定躯干后缘）与「尾巴」（远离髋部），
+// 尾巴重采样为尾根→尾尖的有序曲线（画布坐标，8 点）。
+interface ButtDetail {
+  rumpX: number | null;     // 臀线最左 x；无臀线时为 null
+  tailCurve: Vec2[] | null; // 尾根→尾尖
+}
+
+function analyzeButt(strokes: Stroke[], hips: Vec2[], torsoLen: number): ButtDetail {
+  if (!strokes.length) return { rumpX: null, tailCurve: null };
+  const distHip = (p: Vec2) => {
+    let d = Infinity;
+    for (const h of hips) d = Math.min(d, Math.hypot(p[0] - h[0], p[1] - h[1]));
+    return d;
+  };
+  // 离髋部群最远的笔画 = 尾巴（需超过阈值，否则全部视为臀线）
+  let tail: Stroke | null = null, tailD = Math.max(30, torsoLen * 0.22);
+  for (const s of strokes) {
+    let dMax = 0;
+    for (const p of s.points) dMax = Math.max(dMax, distHip(p));
+    if (dMax > tailD) { tailD = dMax; tail = s; }
+  }
+  const rump = tail ? strokes.filter(s => s !== tail) : strokes;
+  let rumpX: number | null = null;
+  if (rump.length) {
+    rumpX = Infinity;
+    for (const s of rump) for (const [x] of s.points) rumpX = Math.min(rumpX, x);
+  }
+  if (!tail) return { rumpX, tailCurve: null };
+
+  // 尾根 = 离髋最近的点；从尾根向两端取弧长更长的一侧为尾尖方向
+  const tp = tail.points;
+  let bi = 0, bd = Infinity;
+  tp.forEach((p, i) => { const d = distHip(p); if (d < bd) { bd = d; bi = i; } });
+  const fwd = tp.slice(bi), bwd = tp.slice(0, bi + 1).reverse();
+  const arcOf = (q: Vec2[]) => { let a = 0; for (let i = 1; i < q.length; i++) a += Math.hypot(q[i][0] - q[i - 1][0], q[i][1] - q[i - 1][1]); return a; };
+  const ordered = arcOf(fwd) >= arcOf(bwd) ? fwd : bwd;
+  const tailCurve = resample(ordered, 8);
+  return { rumpX, tailCurve };
+}
+
 function analyzeParts(parts: PartStrokes): HorseModel {
   parts = parts || {};
   const legStrokes: Stroke[] = (parts.legs || [])
@@ -395,32 +532,24 @@ function analyzeParts(parts: PartStrokes): HorseModel {
   if (!hipXs.length) hipXs = [g.x0 + (g.x1 - g.x0) * 0.35, g.x0 + (g.x1 - g.x0) * 0.65];
   let rearX = Math.min(...hipXs) - (g.x1 - g.x0) * 0.10;
   let frontX = Math.max(...hipXs) + (g.x1 - g.x0) * 0.18;
-  if (buttStrokes.length) {
-    let bx = Infinity;
-    for (const s of buttStrokes) for (const [x] of s.points) { bx = Math.min(bx, x); }
-    rearX = Math.min(rearX, bx - 8);
-  }
-  let headCx: number | null = null, headCy: number | null = null, headSize = H * 0.22;
-  if (headStrokes.length) {
-    let sx = 0, sy = 0, n = 0, hb: { x0: number; y0: number; x1: number; y1: number } | null = null;
-    for (const s of headStrokes) {
-      const b = strokeBBox(s.points);
-      hb = hb ? {
-        x0: Math.min(hb.x0, b.x0), y0: Math.min(hb.y0, b.y0),
-        x1: Math.max(hb.x1, b.x1), y1: Math.max(hb.y1, b.y1),
-      } : b;
-      for (const [x, y] of s.points) { sx += x; sy += y; n++; }
-    }
-    headCx = sx / n; headCy = sy / n;
-    headSize = Math.max((hb as NonNullable<typeof hb>).x1 - (hb as any).x0, (hb as any).y1 - (hb as any).y0) * 0.6;
-    frontX = Math.max(frontX, headCx - (headSize || 30) * 0.2);
-  }
+  const hipMeanY0 = legs.length
+    ? legs.reduce((a, l) => a + l.hip[1], 0) / legs.length
+    : g.y0 + H * 0.45;
+  const thick0 = H * 0.26;
+
+  // ---- 屁股：分离臀线（定躯干后缘）与尾巴（提取尾曲线）----
+  const hipsPts: Vec2[] = legs.length ? legs.map(l => l.hip) : [[rearX, hipMeanY0]];
+  const butt = analyzeButt(buttStrokes, hipsPts, Math.max(frontX - rearX, 80));
+  if (butt.rumpX != null) rearX = Math.min(rearX, butt.rumpX - 8);
+
+  // ---- 头颈：分离脖子与头部，提取朝向/耳尖 ----
+  const head = analyzeHead(headStrokes, [frontX, hipMeanY0 - thick0 * 0.3]);
+  if (head) frontX = Math.max(frontX, head.cx - head.size * 0.2);
+
   const torsoCx = (rearX + frontX) / 2;
   const torsoLen = Math.max(frontX - rearX, 80);
   const thick = H * 0.26;
-  const hipMeanY = legs.length
-    ? legs.reduce((a, l) => a + l.hip[1], 0) / legs.length
-    : g.y0 + H * 0.45;
+  const hipMeanY = hipMeanY0;
   const torsoCy = hipMeanY - thick * 0.30;
 
   // 髋部吸附到躯干下缘
@@ -449,22 +578,24 @@ function analyzeParts(parts: PartStrokes): HorseModel {
     legs.sort((a, b) => a.hip[0] - b.hip[0]);
   }
   const feetY = Math.max(...legs.map(l => l.foot[1]), torsoCy + thick);
-  const headX = headCx != null ? headCx : frontX + torsoLen * 0.16;
-  const headY = headCy != null ? headCy : torsoCy - thick * 0.8;
 
   return normalize({
     legs,
     cx: torsoCx,
     feetY,
     torsoCy, torsoLen,
-    headX, headY, headSize,
-    neckX: frontX - torsoLen * 0.04,
-    neckY: torsoCy - thick * 0.2,
-    tail: buttStrokes.length ? (() => {
-      let bx = Infinity, by = 0, n = 0;
-      for (const s of buttStrokes) for (const [x, y] of s.points) { bx = Math.min(bx, x); by += y; n++; }
-      return [bx, by / n] as Vec2;
-    })() : null,
+    headX: head ? head.cx : frontX + torsoLen * 0.16,
+    headY: head ? head.cy : torsoCy - thick * 0.8,
+    headSize: head ? head.size : H * 0.22,
+    neckX: head ? head.neckEnd[0] : frontX - torsoLen * 0.04,
+    neckY: head ? head.neckEnd[1] : torsoCy - thick * 0.2,
+    neckBaseX: head ? head.neckBase[0] : undefined,
+    neckBaseY: head ? head.neckBase[1] : undefined,
+    headDir: head ? head.dir : undefined,
+    headEars: head ? head.earTips : undefined,
+    headFound: !!head,
+    tailCurve: butt.tailCurve,
+    tailFound: buttStrokes.length > 0,
   });
 }
 
@@ -480,7 +611,27 @@ interface NormalizeRaw {
   headSize: number;
   neckX: number;
   neckY: number;
-  tail: Vec2 | null;
+  neckBaseX?: number;
+  neckBaseY?: number;
+  headDir?: Vec2;
+  headEars?: Vec2[];
+  headFound?: boolean;
+  tailCurve?: Vec2[] | null;
+  tailFound?: boolean;
+}
+
+// 尾巴摆动幅度：曲线弧长相对弦长的松弛度 0~1
+function curveSwing(curve: Vec2[]): number {
+  let arc = 0;
+  for (let i = 1; i < curve.length; i++) {
+    arc += Math.hypot(curve[i][0] - curve[i - 1][0], curve[i][1] - curve[i - 1][1]);
+  }
+  const chord = Math.hypot(
+    curve[curve.length - 1][0] - curve[0][0],
+    curve[curve.length - 1][1] - curve[0][1],
+  );
+  if (chord < 1) return 0.5;
+  return Math.max(0, Math.min(1, (arc / chord - 1) / 1.2));
 }
 
 function normalize(raw: NormalizeRaw): HorseModel {
@@ -503,16 +654,45 @@ function normalize(raw: NormalizeRaw): HorseModel {
         type: (i < 2 ? "hind" : "fore") as "hind" | "fore",
       };
     }),
-    head: {
-      x: (raw.headX - raw.cx) * scale,
-      y: (raw.feetY - raw.headY) * scale + headSize * 0.35,
-      size: Math.min(headSize, t * 0.95),
-      neckX: (raw.neckX - raw.cx) * scale,
-      neckY: (raw.feetY - raw.neckY) * scale + headSize * 0.15,
-    },
-    tail: raw.tail
-      ? { x: (raw.tail[0] - raw.cx) * scale, y: (raw.feetY - raw.tail[1]) * scale, found: true }
-      : { x: -70, y: (raw.feetY - raw.torsoCy) * scale, found: false },
+    head: (() => {
+      const size = Math.min(headSize, t * 0.95);
+      // 画布朝向 (dx, dy)（y 向下）→ 本地朝向（y 向上）
+      let dirX = 0.7, dirY = 0.7;
+      if (raw.headDir) {
+        const m = Math.hypot(raw.headDir[0], raw.headDir[1]) || 1;
+        dirX = raw.headDir[0] / m;
+        dirY = -raw.headDir[1] / m;
+      }
+      return {
+        x: (raw.headX - raw.cx) * scale,
+        y: (raw.feetY - raw.headY) * scale + headSize * 0.35,
+        size,
+        neckX: (raw.neckX - raw.cx) * scale,
+        neckY: (raw.feetY - raw.neckY) * scale + headSize * 0.15,
+        neckBaseX: raw.neckBaseX != null ? (raw.neckBaseX - raw.cx) * scale : undefined,
+        neckBaseY: raw.neckBaseY != null ? (raw.feetY - raw.neckBaseY) * scale : undefined,
+        dirX, dirY,
+        // 与 head.y 保持同一纵向偏移，耳尖相对头心位置不变
+        earTips: (raw.headEars ?? []).map(e => {
+          const lp = toLocal(e);
+          return [lp[0], lp[1] + headSize * 0.35] as Vec2;
+        }),
+        found: raw.headFound ?? false,
+      };
+    })(),
+    tail: (() => {
+      if (raw.tailCurve && raw.tailCurve.length >= 2) {
+        const curve = raw.tailCurve.map(p => toLocal(p));
+        return {
+          x: curve[0][0],
+          y: curve[0][1],
+          found: true,
+          curve,
+          swing: curveSwing(curve),
+        };
+      }
+      return { x: -70, y: (raw.feetY - raw.torsoCy) * scale, found: raw.tailFound ?? false };
+    })(),
     bodyH: (raw.feetY - raw.torsoCy) * scale,
     quality: raw.legs.reduce((a, l) => a + l.quality, 0) / raw.legs.length,
   };

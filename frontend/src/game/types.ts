@@ -34,12 +34,26 @@ export interface HeadModel {
   size: number;
   neckX: number;
   neckY: number;
+  /** 脖子根（靠躯干端，本地坐标）；缺省由网格层按躯干前端推算 */
+  neckBaseX?: number;
+  neckBaseY?: number;
+  /** 头部朝向单位向量（本地坐标 y 向上）；缺省视为朝右上 */
+  dirX?: number;
+  dirY?: number;
+  /** 识别到的耳尖（本地坐标，最多 2 个；缺省/空 = 使用默认双耳） */
+  earTips?: Vec2[];
+  /** 头部是否来自玩家手绘 */
+  found?: boolean;
 }
 
 export interface TailModel {
   x: number;
   y: number;
   found: boolean;
+  /** 尾巴中心线（本地坐标，尾根→尾尖，约 8 点）；缺省/空 = 使用默认尾柱 */
+  curve?: Vec2[];
+  /** 尾巴横向摆动幅度 0~1 */
+  swing?: number;
 }
 
 export interface HorseModel {

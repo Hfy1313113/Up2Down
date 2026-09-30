@@ -111,6 +111,34 @@ export function useDrawCanvas() {
       ctx.textAlign = "left";
       ctx.textBaseline = "middle";
       ctx.fillText("📍【第 2 步·头部范围】：画马脖子与头耳", zx + 24, zy + 14 + pillH / 2);
+
+      // 脖子引导虚线：从躯干参考线前端 → 头部参考圈（明确「从哪接、画多大」）
+      const torsoFrontX = LOGICAL_W * 0.80, torsoY = LOGICAL_H * 0.42;
+      const headHintX = zx + zw * 0.52, headHintY = zy + zh * 0.42, headHintR = 34;
+      ctx.save();
+      ctx.strokeStyle = "rgba(37, 99, 235, 0.65)";
+      ctx.lineWidth = 4;
+      ctx.setLineDash([10, 8]);
+      ctx.beginPath();
+      ctx.moveTo(torsoFrontX, torsoY);
+      ctx.quadraticCurveTo(torsoFrontX + 30, torsoY - 70, headHintX - headHintR * 0.7, headHintY + headHintR * 0.4);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(headHintX, headHintY, headHintR, 0, Math.PI * 2);
+      ctx.stroke();
+      // 双耳小提示
+      for (const sgn of [-1, 1]) {
+        ctx.beginPath();
+        ctx.moveTo(headHintX - 10 + sgn * 8, headHintY - headHintR + 4);
+        ctx.lineTo(headHintX - 14 + sgn * 10, headHintY - headHintR - 16);
+        ctx.stroke();
+      }
+      ctx.setLineDash([]);
+      ctx.fillStyle = "rgba(37, 99, 235, 0.8)";
+      ctx.font = "bold 17px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("脖子沿虚线接躯干，圈画头，尖画耳", headHintX, headHintY + headHintR + 22);
+      ctx.restore();
     } else if (part === "butt") {
       const zx = LOGICAL_W * 0.06, zy = LOGICAL_H * 0.18, zw = LOGICAL_W * 0.36, zh = LOGICAL_H * 0.50;
       ctx.fillStyle = "rgba(249, 115, 22, 0.1)";
@@ -131,6 +159,27 @@ export function useDrawCanvas() {
       ctx.textAlign = "left";
       ctx.textBaseline = "middle";
       ctx.fillText("📍【第 3 步·屁股范围】：画臀线与尾巴", zx + 24, zy + 14 + pillH / 2);
+
+      // 尾巴引导虚线：从躯干参考线后端 → 向左下甩出（明确尾巴从哪长出来）
+      const torsoRearX = LOGICAL_W * 0.20, torsoY = LOGICAL_H * 0.42;
+      ctx.save();
+      ctx.strokeStyle = "rgba(194, 65, 12, 0.65)";
+      ctx.lineWidth = 4;
+      ctx.setLineDash([10, 8]);
+      ctx.beginPath();
+      ctx.moveTo(torsoRearX, torsoY);
+      ctx.quadraticCurveTo(zx + zw * 0.62, torsoY + 20, zx + zw * 0.40, zy + zh * 0.62);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(zx + zw * 0.40, zy + zh * 0.62);
+      ctx.lineTo(zx + zw * 0.33, zy + zh * 0.62 + 18);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = "rgba(194, 65, 12, 0.85)";
+      ctx.font = "bold 17px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("臀线贴躯干后端，尾巴沿虚线甩出", zx + zw * 0.5, zy + zh * 0.62 + 44);
+      ctx.restore();
     }
     ctx.restore();
 
@@ -161,7 +210,7 @@ export function useDrawCanvas() {
       ctx.restore();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [part]);
 
   useEffect(() => { render(); }, [render, rev, part]);
 

@@ -86,44 +86,72 @@ export function buildHorse(model: HorseModel, color: string): HorseRig {
   torso.position.set(T.cx, T.cy, 0);
   group.add(torso);
 
-  // ---- 脖子 + 头 ----
+  // ---- 脖子 + 头（由识别模型驱动：脖子根/头端/朝向/耳尖）----
   const H = model.head;
-  const neckBase = new THREE.Vector3(T.cx + T.len * 0.38, T.cy + T.thick * 0.28, 0);
+  // 头朝向角（本地坐标 y 向上）；无识别结果时退回固定上仰角
+  const headAngle = H.dirX != null && H.dirY != null ? Math.atan2(H.dirY, H.dirX) : 0.6;
+  const neckBase = H.neckBaseX != null && H.neckBaseY != null
+    ? new THREE.Vector3(H.neckBaseX, H.neckBaseY, 0)
+    : new THREE.Vector3(T.cx + T.len * 0.38, T.cy + T.thick * 0.28, 0);
+  // 脖子头端取识别值；略向朝向后收，使脖颈与头自然衔接
   const neckEnd = new THREE.Vector3(H.neckX, H.neckY, 0);
   const neckDir = neckEnd.clone().sub(neckBase);
-  const neckGeo = track(new THREE.CylinderGeometry(T.thick * 0.26, T.thick * 0.34, neckDir.length(), 10));
+  const neckLen = Math.max(neckDir.length(), H.size * 0.4);
+  const neckGeo = track(new THREE.CylinderGeometry(T.thick * 0.24, T.thick * 0.34, neckLen, 10));
   const neck = new THREE.Mesh(neckGeo, mat(color));
-  neck.position.copy(neckBase.clone().add(neckEnd).multiplyScalar(0.5));
+  neck.position.copy(neckBase.clone().add(neckBase.clone().add(neckDir.clone().normalize().multiplyScalar(neckLen))).multiplyScalar(0.5));
   neck.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), neckDir.clone().normalize());
   group.add(neck);
+
+  // 头组：原点在头心，x 轴 = 识别朝向，所有面部件随之一体旋转
+  const headGroup = new THREE.Group();
+  headGroup.position.set(H.x, H.y, 0);
+  headGroup.rotation.z = headAngle;
+  group.add(headGroup);
 
   const headGeo = track(new THREE.SphereGeometry(H.size * 0.55, 14, 10));
   headGeo.scale(1.35, 0.8, 0.8);
   const head = new THREE.Mesh(headGeo, mat(color));
-  head.position.set(H.x, H.y, 0);
-  head.rotation.z = 0.35;
-  group.add(head);
-  // 吻部
+  headGroup.add(head);
+  // 吻部（沿朝向最前端）
   const muzzleGeo = track(new THREE.SphereGeometry(H.size * 0.3, 10, 8));
   muzzleGeo.scale(1.4, 0.9, 0.9);
   const muzzle = new THREE.Mesh(muzzleGeo, mat(darker));
-  muzzle.position.set(H.x + H.size * 0.55, H.y - H.size * 0.15, 0);
-  group.add(muzzle);
-  // 双耳
-  for (const s of [-1, 1]) {
-    const earGeo = track(new THREE.ConeGeometry(2.6, H.size * 0.5, 6));
-    const ear = new THREE.Mesh(earGeo, mat(dark));
-    ear.position.set(H.x - H.size * 0.15, H.y + H.size * 0.5, s * 3.5);
-    ear.rotation.z = -0.15;
-    group.add(ear);
+  muzzle.position.set(H.size * 0.55, -H.size * 0.12, 0);
+  headGroup.add(muzzle);
+  // 双耳：识别到耳尖 → 按耳尖位置与方向生成；否则退回默认双耳
+  const earTips = H.earTips ?? [];
+  if (earTips.length) {
+    earTips.slice(0, 2).forEach((tipWorld, i) => {
+      const tip = new THREE.Vector3(tipWorld[0], tipWorld[1], 0).sub(headGroup.position);
+      const earDir = tip.clone().sub(new THREE.Vector3(-H.size * 0.1, H.size * 0.25, 0)).normalize();
+      const earLen = Math.max(tip.length() * 0.9, H.size * 0.35);
+      const earGeo = track(new THREE.ConeGeometry(2.4, earLen, 6));
+      earGeo.translate(0, earLen / 2, 0);
+      const ear = new THREE.Mesh(earGeo, mat(dark));
+      // 转到头组本地系（headGroup 旋转了 headAngle）
+      const cos = Math.cos(-headAngle), sin = Math.sin(-headAngle);
+      ear.position.set(tip.x * cos - tip.y * sin, tip.x * sin + tip.y * cos, (i === 0 ? -1 : 1) * 2.6);
+      ear.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0),
+        new THREE.Vector3(earDir.x * cos - earDir.y * sin, earDir.x * sin + earDir.y * cos, 0).normalize());
+      headGroup.add(ear);
+    });
+  } else {
+    for (const s of [-1, 1]) {
+      const earGeo = track(new THREE.ConeGeometry(2.6, H.size * 0.5, 6));
+      const ear = new THREE.Mesh(earGeo, mat(dark));
+      ear.position.set(-H.size * 0.15, H.size * 0.5, s * 3.5);
+      ear.rotation.z = -0.15;
+      headGroup.add(ear);
+    }
   }
-  // 双眼
+  // 双眼（贴在头两侧，随头组朝向）
   const eyeGeo = track(new THREE.SphereGeometry(1.6, 8, 6));
   const eyeMat = track(new THREE.MeshStandardMaterial({ color: "#222", roughness: 0.4 }));
   for (const s of [-1, 1]) {
     const eye = new THREE.Mesh(eyeGeo, eyeMat);
-    eye.position.set(H.x + H.size * 0.25, H.y + H.size * 0.12, s * H.size * 0.4);
-    group.add(eye);
+    eye.position.set(H.size * 0.25, H.size * 0.12, s * H.size * 0.4);
+    headGroup.add(eye);
   }
 
   // ---- 四条腿 ----
@@ -143,13 +171,33 @@ export function buildHorse(model: HorseModel, color: string): HorseRig {
       (rig.kneeGroup.children[1] as THREE.Mesh).material as THREE.Material);
   });
 
-  // ---- 尾巴 ----
-  const tailGeo = track(new THREE.CylinderGeometry(2.2, 1.0, T.thick * 1.6, 8));
-  tailGeo.translate(0, -T.thick * 0.8, 0);
-  const tail = new THREE.Mesh(tailGeo, mat(darker));
-  tail.position.set(T.cx - T.len * 0.5, T.cy + T.thick * 0.1, 0);
-  tail.rotation.z = -0.7;
-  group.add(tail);
+  // ---- 尾巴（识别曲线 → 管状三维尾；否则默认尾柱）----
+  const tailGroup = new THREE.Group();
+  group.add(tailGroup);
+  let tailSwingPhase = 0;
+  if (model.tail?.curve && model.tail.curve.length >= 2) {
+    const cvs = model.tail.curve;
+    const base = new THREE.Vector3(cvs[0][0], cvs[0][1], 0);
+    const pts = cvs.map((c, i) =>
+      new THREE.Vector3(c[0] - base.x, c[1] - base.y, Math.sin(i * 1.4) * 1.6));
+    const curve = new THREE.CatmullRomCurve3(pts);
+    const tailGeo = track(new THREE.TubeGeometry(curve, 14, 2.0, 6, false));
+    const tailMesh = new THREE.Mesh(tailGeo, mat(darker));
+    tailGroup.add(tailMesh);
+    // 尾尖小穗
+    const tuftGeo = track(new THREE.SphereGeometry(2.6, 8, 6));
+    const tuft = new THREE.Mesh(tuftGeo, mat(darker));
+    tuft.position.copy(pts[pts.length - 1]);
+    tailGroup.add(tuft);
+    tailGroup.position.copy(base);
+  } else {
+    const tailGeo = track(new THREE.CylinderGeometry(2.2, 1.0, T.thick * 1.6, 8));
+    tailGeo.translate(0, -T.thick * 0.8, 0);
+    const tail = new THREE.Mesh(tailGeo, mat(darker));
+    tail.position.set(T.cx - T.len * 0.5, T.cy + T.thick * 0.1, 0);
+    tail.rotation.z = -0.7;
+    group.add(tail);
+  }
 
   // ---- 默认人类骑手形象与马鞭 ----
   const riderGroup = new THREE.Group();
@@ -309,16 +357,21 @@ export function buildHorse(model: HorseModel, color: string): HorseRig {
       riderHead.rotation.set(Math.sin(riderFlyRot * 18) * 0.8, Math.cos(riderFlyRot * 15) * 1.2, 0);
 
       // 战马扭过头来回眸看着颠飞的你（第二人称回望）
-      head.rotation.set(0.1, -1.35, -0.2);
+      headGroup.rotation.set(0.1, -1.35, -0.2);
     } else {
       // 正常跑动
       riderGroup.position.set(T.cx, T.cy + radius * 0.85, 0);
       riderGroup.rotation.set(0, 0, -pose.pitch * 0.3);
-      head.rotation.set(0, 0, 0.35);
+      headGroup.rotation.set(0, 0, headAngle);
       leftArm.rotation.set(0, 0, -0.9);
       riderHead.rotation.set(0, 0, 0);
       riderThighs.forEach(t => t.rotation.set(0, 0, -0.65));
       riderShins.forEach(s => s.rotation.set(0, 0, 0.35));
+
+      // 尾巴随奔跑节奏摆动（摆动幅度由识别曲线的松弛度决定）
+      tailSwingPhase += dt * 9;
+      tailGroup.rotation.z = Math.sin(tailSwingPhase) * 0.18 * (model.tail?.swing ?? 0.5);
+      tailGroup.rotation.x = Math.cos(tailSwingPhase * 0.7) * 0.1 * (model.tail?.swing ?? 0.5);
 
       if (whipIntensity > 0.02) {
         // 点击屏幕越激烈，挥鞭频率越快，幅度越大
