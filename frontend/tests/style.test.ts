@@ -59,6 +59,13 @@ describe("风格包注册表与校验", () => {
     expect(p.sfx.whip?.synth).toBe("hornHonk");
   });
 
+  it("宝莱坞：鞭响与象鸣指向公版音频文件，且都保留合成预设回落", () => {
+    const p = getPack("bollywood");
+    expect(p.sfx.whip).toMatchObject({ file: "/styles/bollywood/sfx/whip.mp3", synth: "whipCrack" });
+    expect(p.sfx.trumpet).toMatchObject({ file: "/styles/bollywood/sfx/trumpet.mp3", synth: "trumpetTrunk" });
+    expect(validatePack({ ...p, sfx: { ...p.sfx, trumpet: { synth: "trumpetTrunk" } } })).toEqual([]);
+  });
+
   it("$player 占位识别：颜色或程序化配方里出现即视为玩家相关材质", () => {
     expect(specUsesPlayer({ color: "$player" })).toBe(true);
     expect(specUsesPlayer(bollywood.elephant.blanket)).toBe(true);

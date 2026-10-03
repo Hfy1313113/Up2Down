@@ -153,7 +153,9 @@ export default defineStylePack({
   },
 
   sfx: {
-    whip: { synth: "whipCrack", gain: 0.9 },
+    // 鞭响与象鸣用公版录音（见 public/styles/bollywood/sfx/README.md），文件缺失时回落合成预设
+    whip: { file: "/styles/bollywood/sfx/whip.mp3", synth: "whipCrack", gain: 0.9 },
+    trumpet: { file: "/styles/bollywood/sfx/trumpet.mp3", synth: "trumpetTrunk", gain: 1 },
     impact: { synth: "dholHit", gain: 1 },
     fanfare: { synth: "shehnaiFanfare", gain: 0.9 },
     blast: { synth: "boom", gain: 1 },

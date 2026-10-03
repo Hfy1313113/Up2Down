@@ -20,7 +20,7 @@ import { RaceScene, pipLayout, type PipRect, type ViewMode } from "../three/race
 import { useGame, playAgain } from "../state/game";
 import { transport } from "../net/transport";
 import { getPack } from "../style/registry";
-import { playSfx, playPreset } from "../audio/sfx";
+import { playSfx } from "../audio/sfx";
 import { music } from "../audio/music";
 import { AudioToggle } from "./AudioToggle";
 
@@ -130,7 +130,7 @@ export function RaceScreen({ demo = false }: { demo?: boolean }) {
       // 抽得够猛时大象扬鼻长鸣（节流 1.6s）
       if (me.boost >= 1.4 && performance.now() - lastTrumpet.current > 1600) {
         lastTrumpet.current = performance.now();
-        playPreset("trumpetTrunk", 0.7);
+        playSfx("trumpet", 0.7);
       }
       transport.send({
         t: "elephant_boost",

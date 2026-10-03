@@ -2,6 +2,7 @@
 // 绘制阶段有 150s 窗口，开赛时零等待。全部失败也不阻塞（各自有纯色/程序化回落）。
 import type { StylePack, MaterialSpec } from "./types";
 import { preloadTrack } from "../audio/music";
+import { preloadSfxFiles } from "../audio/sfx";
 
 function collectImageUrls(pack: StylePack): string[] {
   const urls = new Set<string>();
@@ -28,4 +29,5 @@ export function preloadStyle(pack: StylePack): void {
   for (const t of [pack.music.race, pack.music.menu, pack.music.birth]) {
     if (t) void preloadTrack(t);
   }
+  preloadSfxFiles(pack);
 }

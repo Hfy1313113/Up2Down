@@ -183,7 +183,8 @@ export interface MusicSpec {
   birth?: TrackSpec;
 }
 
-export const SFX_IDS = ["whip", "impact", "fanfare", "blast", "buckedOff", "countdown", "go", "uiTap"] as const;
+/** 音效事件：whip 挥鞭 / trumpet 猛抽时的象鸣 / impact 落地 / fanfare 结算 / blast 礼花 / buckedOff 甩飞 / countdown 倒数 / go 起跑 / uiTap 按钮 */
+export const SFX_IDS = ["whip", "trumpet", "impact", "fanfare", "blast", "buckedOff", "countdown", "go", "uiTap"] as const;
 export type SfxId = (typeof SFX_IDS)[number];
 /** 合成预设由 audio/sfx.ts 的预设库实现 */
 export const SYNTH_PRESETS = [

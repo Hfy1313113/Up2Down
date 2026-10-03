@@ -203,22 +203,39 @@ const presets: Record<SynthPreset, Preset> = {
     n.start(t0);
   },
   hornHonk(ctx, dest, gain) {
-    // 汽车双音喇叭：两只方波 + 低通，短促一声
-    const t0 = ctx.currentTime;
+    // 汽车双音喇叭：两只方波 + 低通。单按短促一声；连按间隔过近（上一声尚未收尾）则不重触发，
+    // 而是把当前这声一直按住——连点越密，鸣笛越长，松手后才收尾。
+    const now = ctx.currentTime;
+    const level = 0.16 * gain;
+    const h = horn;
+    if (h && h.ctx === ctx && now < h.until + HORN_LINK_SEC) {
+      // 持续鸣笛：取消已排好的收尾，按住当前音量，再往后延一段
+      const g = h.gain.gain;
+      if (typeof g.cancelAndHoldAtTime === "function") g.cancelAndHoldAtTime(now);
+      else { g.cancelScheduledValues(now); g.setValueAtTime(level, now); }
+      g.setValueAtTime(level, now + 0.001);
+      h.until = now + HORN_HOLD_SEC;
+      scheduleHornRelease(h);
+      return;
+    }
+    if (h) stopHorn(h);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, now);
+    g.gain.linearRampToValueAtTime(level, now + 0.015);
+    g.connect(dest);
+    const oscs: OscillatorNode[] = [];
     for (const f of [392, 494]) {
       const o = ctx.createOscillator();
       o.type = "square";
-      o.frequency.setValueAtTime(f, t0);
+      o.frequency.setValueAtTime(f, now);
       const lp = ctx.createBiquadFilter();
       lp.type = "lowpass"; lp.frequency.value = 1400;
-      const g = ctx.createGain();
-      g.gain.setValueAtTime(0.0001, t0);
-      g.gain.linearRampToValueAtTime(0.16 * gain, t0 + 0.015);
-      g.gain.setValueAtTime(0.16 * gain, t0 + 0.16);
-      g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.23);
-      o.connect(lp).connect(g).connect(dest);
-      o.start(t0); o.stop(t0 + 0.26);
+      o.connect(lp).connect(g);
+      o.start(now);
+      oscs.push(o);
     }
+    horn = { ctx, gain: g, oscs, level, until: now + HORN_HOLD_SEC, timer: 0 };
+    scheduleHornRelease(horn);
   },
   engineRev(ctx, dest, gain) {
     // 地板油起步：锯齿波转速上扬 + 低通打开，顺带一声轮胎打滑
@@ -274,6 +291,27 @@ const presets: Record<SynthPreset, Preset> = {
   },
 };
 
+// ---- 可持续的喇叭：同一时刻只有一只在响 ----
+interface HornState { ctx: AudioContext; gain: GainNode; oscs: OscillatorNode[]; level: number; until: number; timer: number }
+let horn: HornState | null = null;
+/** 单按时按住的时长（之后 80ms 收尾） */
+const HORN_HOLD_SEC = 0.16;
+/** 上一声收尾后多久内再按视为「间隔过近」→ 续响而不重触发 */
+const HORN_LINK_SEC = 0.12;
+function scheduleHornRelease(h: HornState): void {
+  const g = h.gain.gain;
+  g.setValueAtTime(h.level, h.until);
+  g.exponentialRampToValueAtTime(0.001, h.until + 0.08);
+  clearTimeout(h.timer);
+  h.timer = window.setTimeout(() => { if (horn === h) stopHorn(h); }, (h.until + 0.1 - h.ctx.currentTime) * 1000);
+}
+function stopHorn(h: HornState): void {
+  clearTimeout(h.timer);
+  for (const o of h.oscs) { try { o.stop(); } catch { /* 已停止 */ } }
+  h.gain.disconnect();
+  if (horn === h) horn = null;
+}
+
 function presetsDelayed(ctx: AudioContext, dest: AudioNode, id: SynthPreset, at: number, gain: number): void {
   const delay = Math.max(0, (at - ctx.currentTime) * 1000);
   setTimeout(() => presets[id](ctx, dest, gain), delay);
@@ -281,6 +319,7 @@ function presetsDelayed(ctx: AudioContext, dest: AudioNode, id: SynthPreset, at:
 
 const DEFAULTS: Record<SfxId, SynthPreset> = {
   whip: "whipCrack",
+  trumpet: "trumpetTrunk",
   impact: "thud",
   fanfare: "brassFanfare",
   blast: "boom",
@@ -294,6 +333,10 @@ let currentPack: StylePack | null = null;
 export function setSfxPack(pack: StylePack): void { currentPack = pack; }
 
 const fileCache = new Map<string, Promise<AudioBuffer | null>>();
+/** 预载风格包的音效文件（无文件或失败时静默） */
+export function preloadSfxFiles(pack: StylePack): void {
+  for (const s of Object.values(pack.sfx)) if (s?.file) void loadFile(s.file);
+}
 async function loadFile(url: string): Promise<AudioBuffer | null> {
   const hit = fileCache.get(url);
   if (hit) return hit;
@@ -309,13 +352,13 @@ async function loadFile(url: string): Promise<AudioBuffer | null> {
   return p;
 }
 
-export function playSfx(id: SfxId): void {
+export function playSfx(id: SfxId, gainScale = 1): void {
   try {
     const ctx = getAudioCtx();
     const bus = getBus("sfx");
     if (!ctx || !bus) return;
     const spec: SfxSpec | undefined = currentPack?.sfx[id];
-    const gain = spec?.gain ?? 1;
+    const gain = (spec?.gain ?? 1) * gainScale;
     if (spec?.file) {
       void loadFile(spec.file).then(buf => {
         if (buf) {
