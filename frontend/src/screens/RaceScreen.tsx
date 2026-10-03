@@ -16,7 +16,7 @@ import {
   DANGER_BOOST_THRESHOLD,
   type RaceState,
 } from "../game/raceSim";
-import { RaceScene, type ViewMode } from "../three/raceScene";
+import { RaceScene, pipLayout, type PipRect, type ViewMode } from "../three/raceScene";
 import { useGame, playAgain } from "../state/game";
 import { transport } from "../net/transport";
 import { getPack } from "../style/registry";
@@ -64,6 +64,8 @@ export function RaceScreen({ demo = false }: { demo?: boolean }) {
   viewRef.current = view;
   const raceRef = useRef<RaceState | null>(null);
   const [boostRatio, setBoostRatio] = useState(0);
+  const [whip, setWhip] = useState(0);
+  const [pip, setPip] = useState<PipRect>(() => pipLayout(window.innerWidth, window.innerHeight));
   const [dangerSec, setDangerSec] = useState(0);
   const [buckedOff, setBuckedOff] = useState(false);
   const buckedOffSoundPlayed = useRef(false);
@@ -157,8 +159,9 @@ export function RaceScreen({ demo = false }: { demo?: boolean }) {
     const canvas = canvasRef.current!;
     const list = (g.elephants ?? []).map(h => ({ id: h.id, name: h.name, model: h.model }));
     const scene = new RaceScene(canvas, list, myIndex, pack);
-    const onResize = () => scene.resize();
+    const onResize = () => { scene.resize(); setPip(pipLayout(window.innerWidth, window.innerHeight)); };
     window.addEventListener("resize", onResize);
+    onResize();
 
     const race = createRace(list.map(l => ({ id: l.id, name: l.name, model: l.model })));
     raceRef.current = race;
@@ -198,6 +201,7 @@ export function RaceScreen({ demo = false }: { demo?: boolean }) {
       const me = raceRef.current.runners.find(r => r.id === myRunnerId);
       if (me) {
         setBoostRatio((me.boost - 1.0) / (MAX_BOOST - 1.0));
+        setWhip(me.whipIntensity);
         setDangerSec(me.dangerDuration);
         if (me.buckedOff && !buckedOffSoundPlayed.current) {
           buckedOffSoundPlayed.current = true;
@@ -291,6 +295,27 @@ export function RaceScreen({ demo = false }: { demo?: boolean }) {
   return (
     <div className="fixed inset-0 w-full h-full overflow-hidden select-none touch-manipulation" onPointerDown={onPointerDown}>
       <canvas ref={canvasRef} className="w-full h-full block" />
+
+      {/* 面部直播画中画：3D 画面由 RaceScene 以剪裁视口渲染到同一画布，这里只叠边框、标签与随挥鞭力度加深的红色暗角 */}
+      {!countdown && !result && !spectating && (
+        <div
+          className="race-pip absolute z-20 pointer-events-none"
+          style={{ left: pip.x, bottom: pip.y, width: pip.w, height: pip.h }}
+        >
+          <div
+            className="absolute inset-0 rounded-md"
+            style={{ background: `radial-gradient(ellipse at center, transparent ${Math.round(62 - 22 * whip)}%, rgba(220,38,38,${(0.08 + 0.55 * whip).toFixed(2)}) 100%)` }}
+          />
+          <div
+            className="absolute -inset-0.5 rounded-lg border-3 border-(--ui-ink) shadow-[3px_3px_0_var(--ui-ink)]"
+            style={{ boxShadow: `3px 3px 0 var(--ui-ink), inset 0 0 ${Math.round(6 + 30 * whip)}px rgba(239,68,68,${(0.15 + 0.7 * whip).toFixed(2)})` }}
+          />
+          <div className="absolute top-1 left-1 flex items-center gap-1 bg-black/75 text-white text-[10px] sm:text-[11px] font-black px-1.5 py-0.5 rounded">
+            <span className="bg-red-600 text-white px-1 rounded font-mono animate-pulse">LIVE</span>
+            <span>{buckedOff ? "驭象师升天实况" : whip > 0.7 ? "驭象师·狰狞中" : whip > 0.2 ? "驭象师·使劲抽" : "驭象师面部直播"}</span>
+          </div>
+        </div>
+      )}
 
       {isDangerZone && !buckedOff && !countdown && !result && (
         <div className="danger-ambient-pulse fixed inset-0 pointer-events-none z-25" />

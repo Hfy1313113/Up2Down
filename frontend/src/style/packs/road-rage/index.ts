@@ -10,6 +10,8 @@ const LAMP_GLOW = "#ffc466";
 const SEAT_GREY = "#5a5e68";
 const SHIRT_TEAL = "#3b6670";
 const SKIN = "#e8c993";
+// 四位玩家四张脸：肤色按玩家序号取，长相（闷闷 / 八字胡 / 乐呵 / 困倦）也按序号轮选
+const SKINS = ["#e8c993", "#c9a26d", "#efd7a6", "#e2c08f"];
 const INK = "#1b1b1b";
 const NIGHT_INK = "#1b2440";
 const CHROME = { color: "#d7dde3", metalness: 0.8, roughness: 0.25 } as const;
@@ -66,11 +68,11 @@ export default defineStylePack({
       whipLash: { color: "#1f1f1f", roughness: 0.8 },
     },
     accessories: ["curlyHair", "seat", "steeringWheel"],
-    // 常态「不爽脸」→ 轻抽「怒视」→ 猛抽 / 甩飞「咬牙冒汗」
+    // 常态 → 轻抽「怒视」→ 猛抽 / 甩飞「咬牙冒汗」；长相与肤色按玩家序号区分
     face: {
-      calm: { texture: { kind: "procedural", recipe: { type: "face", skin: SKIN, ink: INK, mood: "calm" }, size: 512 }, roughness: 0.75 },
-      tense: { texture: { kind: "procedural", recipe: { type: "face", skin: SKIN, ink: INK, mood: "angry", mouth: "#7a1b12" }, size: 512 }, roughness: 0.75 },
-      furious: { texture: { kind: "procedural", recipe: { type: "face", skin: SKIN, ink: INK, mood: "grit", sweat: "#7fd6ff" }, size: 512 }, roughness: 0.75 },
+      calm: { texture: { kind: "procedural", recipe: { type: "face", skin: SKINS, ink: INK, mood: "calm", variant: "$player" }, size: 512 }, roughness: 0.75 },
+      tense: { texture: { kind: "procedural", recipe: { type: "face", skin: SKINS, ink: INK, mood: "angry", variant: "$player" }, size: 512 }, roughness: 0.75 },
+      furious: { texture: { kind: "procedural", recipe: { type: "face", skin: SKINS, ink: INK, mood: "grit", variant: "$player", sweat: "#7fd6ff" }, size: 512 }, roughness: 0.75 },
     },
   },
 

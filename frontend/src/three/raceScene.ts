@@ -12,6 +12,19 @@ import { buildEnvironment } from "./environment";
 
 export type ViewMode = "third" | "first";
 
+/** 面部画中画区域（CSS 像素；y 自画布底边起算）。宽屏贴右下角，窄屏抬到底部 HUD 之上 */
+export interface PipRect { x: number; y: number; w: number; h: number }
+export function pipLayout(width: number, height: number): PipRect {
+  if (width >= 760) {
+    const w = Math.round(Math.min(300, Math.max(160, width * 0.21)));
+    const h = Math.round(w * 0.78);
+    return { x: width - w - 12, y: 12, w, h };
+  }
+  const w = Math.round(Math.min(180, Math.max(116, width * 0.36)));
+  const h = Math.round(w * 0.9);
+  return { x: width - w - 8, y: Math.min(190, Math.round(height * 0.26)), w, h };
+}
+
 interface ElephantObj {
   rig: ElephantRig;
   textSprite: THREE.Sprite;
@@ -56,6 +69,16 @@ export class RaceScene {
   private pack: StylePack;
   private materials: MaterialResolver;
 
+  // 面部画中画：第二台相机正对自己驭象师的脸
+  private faceCam: THREE.PerspectiveCamera;
+  private faceTime = 0;
+  private tmpHead = new THREE.Vector3();
+  private tmpQuat = new THREE.Quaternion();
+  private tmpFwd = new THREE.Vector3();
+  private tmpUp = new THREE.Vector3();
+  private tmpRight = new THREE.Vector3();
+  private tmpLook = new THREE.Vector3();
+
   constructor(canvas: HTMLCanvasElement, entries: { name: string; model: import("../game/types").ElephantModel }[], myIndex: number, pack: StylePack) {
     this.myIndex = myIndex;
     this.pack = pack;
@@ -65,6 +88,8 @@ export class RaceScene {
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(60, 1, 0.1, 800);
     this.track(this.camera);
+    this.faceCam = new THREE.PerspectiveCamera(30, 4 / 3, 0.05, 400);
+    this.track(this.faceCam);
 
     const S = WORLD_SCALE;
     // 天空/雾/灯光/地面/跑道/栅栏/终点门/礼花筒/云朵/装饰物：全部来自风格包声明
@@ -369,6 +394,55 @@ export class RaceScene {
     }
 
     this.renderer.render(this.scene, this.camera);
+
+    // 面部画中画：出局观战后不再显示
+    if (!spectating) this.renderFacePip(me, myObj, dt);
+  }
+
+  /**
+   * 右下角画中画：相机架在驭象师正前方盯着脸。挥鞭越猛，相机越贴近、抖得越凶、机身越歪，
+   * 配合 elephantMesh 的抖头 / 挤压与三档表情，呈现越抽越狰狞的酣畅感。
+   */
+  private renderFacePip(me: RaceState["runners"][number], myObj: ElephantObj, dt: number): void {
+    const canvas = this.renderer.domElement;
+    const W = canvas.clientWidth || window.innerWidth;
+    const H = canvas.clientHeight || window.innerHeight;
+    const rect = pipLayout(W, H);
+    const k = me.buckedOff ? 1 : me.whipIntensity;
+    this.faceTime += dt;
+    const t = this.faceTime;
+
+    const rig = myObj.rig;
+    const headR = rig.riderHeadR * rig.group.scale.x;
+    // 相机朝向跟随大象整体姿态（不跟随头部本身的抖动，这样抖头才看得见）；
+    // 甩飞后驭象师整个人在空中翻滚，改跟随头部朝向，镜头随之旋转——「升天实况」
+    if (me.buckedOff) rig.riderHead.getWorldQuaternion(this.tmpQuat);
+    else rig.group.getWorldQuaternion(this.tmpQuat);
+    this.tmpFwd.set(1, 0, 0).applyQuaternion(this.tmpQuat);
+    this.tmpUp.set(0, 1, 0).applyQuaternion(this.tmpQuat);
+    this.tmpRight.crossVectors(this.tmpFwd, this.tmpUp).normalize();
+    rig.riderHead.getWorldPosition(this.tmpHead);
+
+    const dist = headR * (9.5 - 3.6 * k);
+    const shake = headR * 0.3 * k * k;
+    this.faceCam.position.copy(this.tmpHead)
+      .addScaledVector(this.tmpFwd, dist)
+      .addScaledVector(this.tmpUp, headR * 0.2 + Math.sin(t * 37) * shake)
+      .addScaledVector(this.tmpRight, Math.sin(t * 29) * shake);
+    this.tmpLook.copy(this.tmpHead).addScaledVector(this.tmpUp, headR * 0.05);
+    this.faceCam.up.copy(this.tmpUp);
+    this.faceCam.lookAt(this.tmpLook);
+    this.faceCam.rotateZ(Math.sin(t * 23) * 0.22 * k);
+    this.faceCam.fov = 30 - 6 * k;
+    this.faceCam.aspect = rect.w / rect.h;
+    this.faceCam.updateProjectionMatrix();
+
+    this.renderer.setScissorTest(true);
+    this.renderer.setViewport(rect.x, rect.y, rect.w, rect.h);
+    this.renderer.setScissor(rect.x, rect.y, rect.w, rect.h);
+    this.renderer.render(this.scene, this.faceCam);
+    this.renderer.setScissorTest(false);
+    this.renderer.setViewport(0, 0, W, H);
   }
 
   dispose(): void {

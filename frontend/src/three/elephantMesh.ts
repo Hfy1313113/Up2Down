@@ -33,7 +33,31 @@ export interface ElephantRig {
   ): void;
   /** 头部世界锚点（本地坐标，未乘 group 变换） */
   headLocal: THREE.Vector3;
+  /** 驭象师头球（脸朝 group 本地 +x），供面部画中画相机取景 */
+  riderHead: THREE.Object3D;
+  /** 驭象师头球半径（模型本地单位，乘 group 缩放即世界半径） */
+  riderHeadR: number;
   dispose(): void;
+}
+
+/** 按肤色明暗选线条色：深肤色用浅线，否则用近黑 */
+function faceInkFor(skin: string): string {
+  const m = /^#([0-9a-f]{6})$/i.exec(skin.trim());
+  if (!m) return "#1b1b1b";
+  const n = parseInt(m[1], 16);
+  const lum = (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
+  return lum < 0.38 ? "#f6e7d2" : "#1b1b1b";
+}
+
+/** 风格包没配脸时的默认三档脸：用 skin 颜色做底，长相按玩家序号轮选 */
+function defaultFace(skinSpec: MaterialSpec): { calm: MaterialSpec; tense: MaterialSpec; furious: MaterialSpec } {
+  const skin = skinSpec.color && skinSpec.color !== "$player" ? skinSpec.color : "#e8c993";
+  const ink = faceInkFor(skin);
+  const mk = (mood: "calm" | "angry" | "grit", sweat?: string): MaterialSpec => ({
+    texture: { kind: "procedural", recipe: { type: "face", skin, ink, mood, variant: "$player", sweat }, size: 512 },
+    roughness: skinSpec.roughness ?? 0.75,
+  });
+  return { calm: mk("calm"), tense: mk("angry"), furious: mk("grit", "#7fd6ff") };
 }
 
 export interface BuildOptions {
@@ -106,34 +130,37 @@ interface AccessoryCtx {
 }
 const ACCESSORIES: Record<RiderAccessory, (c: AccessoryCtx) => void> = {
   helmet({ head, headR, mat, track }) {
-    const geo = track(new THREE.SphereGeometry(headR * 1.05, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.55));
+    // 头盔只盖到眉毛上方（约 70°），把脸留出来
+    const geo = track(new THREE.SphereGeometry(headR * 1.05, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.39));
     const m = new THREE.Mesh(geo, mat("headwear"));
     m.position.set(0, headR * 0.12, 0);
     head.add(m);
   },
   visor({ head, headR, mat, track }) {
-    const geo = track(new THREE.BoxGeometry(headR * 0.9, 1.2, headR * 1.1));
+    // 帽檐：从头盔下沿向前伸出，架在眉毛之上，不压眉不遮眼
+    const geo = track(new THREE.BoxGeometry(headR * 0.9, 1.0, headR * 1.1));
     const m = new THREE.Mesh(geo, mat("jewel"));
-    m.position.set(headR * 0.65, headR * 0.1, 0);
-    m.rotation.z = -0.15;
+    m.position.set(headR * 0.78, headR * 0.62, 0);
+    m.rotation.z = -0.1;
     head.add(m);
   },
   turban({ head, headR, mat, track }) {
     // 缠绕层 + 顶部圆顶 + 额前宝石
-    const band = new THREE.Mesh(track(new THREE.TorusGeometry(headR * 0.92, headR * 0.42, 10, 20)), mat("headwear"));
+    // 缠绕层整体抬到眉毛以上，脸留给脸贴图
+    const band = new THREE.Mesh(track(new THREE.TorusGeometry(headR * 0.9, headR * 0.38, 10, 20)), mat("headwear"));
     band.rotation.x = Math.PI / 2;
-    band.position.set(0, headR * 0.35, 0);
+    band.position.set(0, headR * 0.58, 0);
     head.add(band);
-    const band2 = new THREE.Mesh(track(new THREE.TorusGeometry(headR * 0.8, headR * 0.36, 10, 20)), mat("headwear"));
+    const band2 = new THREE.Mesh(track(new THREE.TorusGeometry(headR * 0.76, headR * 0.34, 10, 20)), mat("headwear"));
     band2.rotation.x = Math.PI / 2;
     band2.rotation.z = 0.25;
-    band2.position.set(0, headR * 0.72, 0);
+    band2.position.set(0, headR * 0.92, 0);
     head.add(band2);
-    const dome = new THREE.Mesh(track(new THREE.SphereGeometry(headR * 0.78, 12, 10)), mat("headwear"));
-    dome.position.set(0, headR * 0.85, 0);
+    const dome = new THREE.Mesh(track(new THREE.SphereGeometry(headR * 0.74, 12, 10)), mat("headwear"));
+    dome.position.set(0, headR * 1.04, 0);
     head.add(dome);
     const jewel = new THREE.Mesh(track(new THREE.SphereGeometry(headR * 0.2, 8, 6)), mat("jewel"));
-    jewel.position.set(headR * 0.98, headR * 0.5, 0);
+    jewel.position.set(headR * 0.98, headR * 0.64, 0);
     head.add(jewel);
   },
   cap({ head, headR, mat, track }) {
@@ -153,7 +180,7 @@ const ACCESSORIES: Record<RiderAccessory, (c: AccessoryCtx) => void> = {
     const geo = track(new THREE.CylinderGeometry(headR * 0.1, headR * 0.05, headR * 0.55, 6));
     for (const s of [-1, 1]) {
       const m = new THREE.Mesh(geo, mat("hair"));
-      m.position.set(headR * 0.9, -headR * 0.22, s * headR * 0.26);
+      m.position.set(headR * 0.9, -headR * 0.33, s * headR * 0.26);   // 落在画出的鼻子与嘴之间
       m.rotation.x = s * (Math.PI / 2 - 0.35);   // 两端微微下垂
       head.add(m);
     }
@@ -534,17 +561,16 @@ export function buildElephant(model: ElephantModel, opts: BuildOptions): Elephan
   riderGroup.add(jacket);
 
   const headR = radius * 0.35;
-  // 脸：风格包给了 face 档位就按连点强度切换表情（calm → tense → furious），否则用 skin
-  const faceSpec = pack.rider.face;
-  const faceMats = faceSpec
-    ? (() => {
-        const calm = materials.get(faceSpec.calm, playerIndex);
-        const tense = faceSpec.tense ? materials.get(faceSpec.tense, playerIndex) : calm;
-        const furious = faceSpec.furious ? materials.get(faceSpec.furious, playerIndex) : tense;
-        return { calm, tense, furious };
-      })()
-    : null;
-  const riderHead = new THREE.Mesh(track(new THREE.SphereGeometry(headR, 24, 16)), faceMats?.calm ?? rMat("skin"));
+  // 脸：风格包给了 face 档位就用它，否则按 skin 颜色生成默认脸（长相按玩家序号轮选）；
+  // 三档按连点强度切换（calm → tense → furious），缺省档沿用上一档
+  const faceSpec = pack.rider.face ?? defaultFace(pack.rider.materials.skin);
+  const faceMats = (() => {
+    const calm = materials.get(faceSpec.calm, playerIndex);
+    const tense = faceSpec.tense ? materials.get(faceSpec.tense, playerIndex) : calm;
+    const furious = faceSpec.furious ? materials.get(faceSpec.furious, playerIndex) : tense;
+    return { calm, tense, furious };
+  })();
+  const riderHead = new THREE.Mesh(track(new THREE.SphereGeometry(headR, 24, 16)), faceMats.calm);
   riderHead.position.set(radius * 0.15, radius * 1.55, 0);
   riderGroup.add(riderHead);
   // 头发：后脑一块（phi 从 -π/2 到 π/2 → x≤0 的后半球，正脸 +x 留给脸贴图）
@@ -622,6 +648,7 @@ export function buildElephant(model: ElephantModel, opts: BuildOptions): Elephan
   let whipPhase = 0;
   let earPhase = 0;
   let trunkLift = 0;
+  let faceTime = 0;
 
   const headLocal = new THREE.Vector3(H.x, H.y + H.size * 0.2, 0);
 
@@ -648,7 +675,7 @@ export function buildElephant(model: ElephantModel, opts: BuildOptions): Elephan
     ears.forEach((ear, i) => { ear.rotation.y = (i === 0 ? -1 : 1) * (0.45 + Math.sin(earPhase + i) * 0.18); });
 
     // 表情：甩飞或猛抽 → 暴怒；轻抽 → 紧绷；否则常态
-    if (faceMats) {
+    {
       const face = buckedOff || whipIntensity > 0.7 ? faceMats.furious : whipIntensity > 0.2 ? faceMats.tense : faceMats.calm;
       if (riderHead.material !== face) riderHead.material = face;
     }
@@ -671,6 +698,7 @@ export function buildElephant(model: ElephantModel, opts: BuildOptions): Elephan
       if (riderShins[0]) riderShins[0].rotation.set(0, 0, 0.35 + flailCos * 2.2);
       if (riderShins[1]) riderShins[1].rotation.set(0, 0, 0.35 - flailCos * 2.2);
       riderHead.rotation.set(Math.sin(riderFlyRot * 18) * 0.8, Math.cos(riderFlyRot * 15) * 1.2, 0);
+      riderHead.scale.setScalar(1);
       // 大象扭头回眸，象鼻高高扬起目送驭象师升天（第二人称回望）
       headGroup.rotation.set(0.1, -1.35, -0.2);
       trunkGroup.rotation.z = 1.1 + Math.sin(riderFlyRot * 6) * 0.15;
@@ -679,7 +707,20 @@ export function buildElephant(model: ElephantModel, opts: BuildOptions): Elephan
       riderGroup.rotation.set(0, 0, -pose.pitch * 0.3);
       headGroup.rotation.set(0, 0, headAngle);
       leftArm.rotation.set(0, 0, -0.9);
-      riderHead.rotation.set(0, 0, 0);
+      // 面部随挥鞭力度越来越狰狞：抖头、咬牙前伸的横向拉伸与上下挤压、脖子绷紧的侧倾
+      faceTime += dt;
+      const k = whipIntensity;
+      const j = faceTime * 28;
+      riderHead.rotation.set(
+        Math.sin(j) * 0.22 * k,
+        Math.sin(j * 0.7) * 0.18 * k,
+        -0.12 * k + Math.sin(j * 1.3) * 0.25 * k,
+      );
+      riderHead.scale.set(
+        1 + 0.16 * k + Math.sin(j * 0.9) * 0.07 * k,
+        1 - 0.12 * k + Math.cos(j * 0.9) * 0.07 * k,
+        1 + 0.08 * k,
+      );
       riderThighs.forEach(t => t.rotation.set(0, 0, -0.65));
       riderShins.forEach(s => s.rotation.set(0, 0, 0.35));
 
@@ -706,7 +747,7 @@ export function buildElephant(model: ElephantModel, opts: BuildOptions): Elephan
   }
 
   return {
-    group, setPose, headLocal,
+    group, setPose, headLocal, riderHead, riderHeadR: headR,
     dispose() {
       // 材质由 MaterialResolver 统一持有与释放，这里只释放几何
       disposables.forEach(d => d.dispose());

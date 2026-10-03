@@ -16,8 +16,19 @@ function mulberry32(seed: number) {
   };
 }
 
+export const FACE_VARIANTS = 4;
+/** 脸配方的长相序号：variant 为 "$player" 时按玩家序号轮选 */
+export function faceVariant(recipe: Extract<ProceduralRecipe, { type: "face" }>, playerIndex: number): number {
+  const v = recipe.variant === "$player" ? playerIndex : (recipe.variant ?? 0);
+  return ((Math.floor(v) % FACE_VARIANTS) + FACE_VARIANTS) % FACE_VARIANTS;
+}
+/** 配方是否按玩家序号（而非仅玩家色）变化：这类纹理与材质的缓存键要带上序号 */
+export function recipeUsesIndex(recipe: ProceduralRecipe): boolean {
+  return recipe.type === "face" && (recipe.variant === "$player" || Array.isArray(recipe.skin));
+}
+
 /** 把配方画到 canvas；纯函数式：同配方同尺寸同输出 */
-export function paintRecipe(ctx: CanvasRenderingContext2D, size: number, recipe: ProceduralRecipe, player: string): void {
+export function paintRecipe(ctx: CanvasRenderingContext2D, size: number, recipe: ProceduralRecipe, player: string, playerIndex = 0): void {
   const sub = (c: string) => (c === "$player" ? player : c);
   const rand = mulberry32(("seed" in recipe && recipe.seed) || 1);
   ctx.clearRect(0, 0, size, size);
@@ -206,76 +217,146 @@ export function paintRecipe(ctx: CanvasRenderingContext2D, size: number, recipe:
     }
     case "face": {
       // 卡通脸贴在球面 u=0.5（+x，驭象师正前方）附近；画布上方对应头顶。
-      // 五官集中在横向 ±7.5%（球面约 ±27°）、纵向 40%~66%（眉在赤道上方、嘴在赤道下方）
-      ctx.fillStyle = sub(recipe.skin);
+      // 五官集中在横向 ±8%（球面约 ±29°）、纵向 40%~66%（眉在赤道上方、嘴在赤道下方）。
+      // variant 决定长相，mood 决定情绪档；颜色数组按玩家序号取。
+      const v = faceVariant(recipe, playerIndex);
+      const skins = Array.isArray(recipe.skin) ? recipe.skin : [recipe.skin];
+      ctx.fillStyle = sub(skins[((playerIndex % skins.length) + skins.length) % skins.length]);
       ctx.fillRect(0, 0, size, size);
       const ink = sub(recipe.ink);
       const s = size, cx = s * 0.5;
-      const eyeDx = s * 0.075;
+      const eyeDx = s * 0.078;
       const browY = s * 0.40, eyeY = s * 0.47, noseY = s * 0.555, mouthY = s * 0.655;
+      const mood = recipe.mood;
       ctx.strokeStyle = ink;
       ctx.fillStyle = ink;
       ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      const stroke = (w: number, draw: () => void) => { ctx.lineWidth = w; ctx.beginPath(); draw(); ctx.stroke(); };
+      const fill = (draw: () => void) => { ctx.beginPath(); draw(); ctx.fill(); };
+
+      // ---- 眉毛 ----
       for (const sd of [-1, 1]) {
         const x = cx + sd * eyeDx;
-        ctx.beginPath();
-        if (recipe.mood === "calm") {
-          // 平眉微弯
-          ctx.lineWidth = s * 0.016;
-          ctx.moveTo(x - sd * s * 0.03, browY + s * 0.004);
-          ctx.quadraticCurveTo(x, browY - s * 0.012, x + sd * s * 0.03, browY + s * 0.002);
-        } else {
-          // 怒视：眉头压向鼻梁、眉尾上扬
-          ctx.lineWidth = recipe.mood === "grit" ? s * 0.03 : s * 0.022;
-          ctx.moveTo(x - sd * s * 0.035, browY - s * 0.022);
-          ctx.lineTo(x + sd * s * 0.03, browY + s * 0.016);
+        if (mood !== "calm") {
+          // 怒视 / 咬牙：眉头压向鼻梁、眉尾上扬；咬牙更粗并加两道皱纹
+          stroke(mood === "grit" ? s * 0.03 : s * 0.022, () => {
+            ctx.moveTo(x - sd * s * 0.036, browY - s * 0.024);
+            ctx.lineTo(x + sd * s * 0.032, browY + s * 0.018);
+          });
+          if (mood === "grit") {
+            stroke(s * 0.006, () => { ctx.moveTo(x - sd * s * 0.055, browY - s * 0.045); ctx.lineTo(x - sd * s * 0.04, browY - s * 0.028); });
+            stroke(s * 0.006, () => { ctx.moveTo(x - sd * s * 0.07, browY - s * 0.03); ctx.lineTo(x - sd * s * 0.052, browY - s * 0.016); });
+          }
+          continue;
         }
-        ctx.stroke();
+        switch (v) {
+          case 0:   // 闷闷：短粗眉，外侧微垂
+            stroke(s * 0.02, () => { ctx.moveTo(x - sd * s * 0.026, browY - s * 0.004); ctx.lineTo(x + sd * s * 0.026, browY + s * 0.012); });
+            break;
+          case 1:   // 八字胡：细长微拱眉
+            stroke(s * 0.011, () => { ctx.moveTo(x - sd * s * 0.045, browY + s * 0.006); ctx.quadraticCurveTo(x, browY - s * 0.02, x + sd * s * 0.045, browY + s * 0.004); });
+            break;
+          case 2:   // 乐呵：短短的拱形眉
+            stroke(s * 0.016, () => { ctx.moveTo(x - sd * s * 0.03, browY + s * 0.006); ctx.quadraticCurveTo(x, browY - s * 0.016, x + sd * s * 0.03, browY + s * 0.006); });
+            break;
+          default:  // 困倦：粗重眉条
+            stroke(s * 0.03, () => { ctx.moveTo(x - sd * s * 0.04, browY + s * 0.002); ctx.lineTo(x + sd * s * 0.036, browY + s * 0.004); });
+        }
       }
-      // 小黑点眼
+
+      // ---- 眼睛 ----
       for (const sd of [-1, 1]) {
-        ctx.beginPath();
-        ctx.ellipse(cx + sd * eyeDx, eyeY, s * 0.011, s * 0.016, 0, 0, Math.PI * 2);
-        ctx.fill();
+        const x = cx + sd * eyeDx;
+        if (v === 3 && mood === "calm") {
+          // 困倦：眯成一道横线 + 眼袋小钩
+          stroke(s * 0.012, () => { ctx.moveTo(x - s * 0.02, eyeY); ctx.lineTo(x + s * 0.02, eyeY); });
+          stroke(s * 0.008, () => { ctx.moveTo(x + sd * s * 0.004, eyeY + s * 0.004); ctx.lineTo(x + sd * s * 0.004, eyeY + s * 0.02); ctx.lineTo(x + sd * s * 0.018, eyeY + s * 0.02); });
+        } else if (mood === "grit") {
+          // 咬牙：眼睛眯成竖点 + 下眼睑线
+          fill(() => ctx.ellipse(x, eyeY, s * 0.009, s * 0.014, 0, 0, Math.PI * 2));
+          stroke(s * 0.006, () => { ctx.moveTo(x - s * 0.018, eyeY + s * 0.024); ctx.lineTo(x + s * 0.018, eyeY + s * 0.024); });
+        } else {
+          const r = v === 2 ? s * 0.009 : s * 0.011;
+          fill(() => ctx.ellipse(x, eyeY, r, r * 1.4, 0, 0, Math.PI * 2));
+        }
       }
-      // 鼻子
-      ctx.lineWidth = s * 0.012;
-      ctx.beginPath();
-      ctx.moveTo(cx - s * 0.03, noseY);
-      ctx.quadraticCurveTo(cx, noseY + s * 0.02, cx + s * 0.03, noseY);
-      ctx.stroke();
-      // 嘴
-      if (recipe.mood === "grit") {
-        // 咬牙：白牙块 + 中缝
-        ctx.fillStyle = "#ffffff";
-        ctx.beginPath();
-        ctx.roundRect(cx - s * 0.075, mouthY - s * 0.028, s * 0.15, s * 0.056, s * 0.02);
-        ctx.fill();
-        ctx.lineWidth = s * 0.01;
-        ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(cx - s * 0.075, mouthY); ctx.lineTo(cx + s * 0.075, mouthY); ctx.stroke();
-      } else if (recipe.mood === "angry") {
-        ctx.fillStyle = sub(recipe.mouth ?? "#7a1b12");
-        ctx.beginPath();
-        ctx.ellipse(cx, mouthY, s * 0.05, s * 0.022, 0, 0, Math.PI * 2);
-        ctx.fill();
+
+      // ---- 鼻子 ----
+      if (v === 1) {
+        // 大鼻头带鼻翼
+        stroke(s * 0.012, () => {
+          ctx.moveTo(cx - s * 0.04, noseY - s * 0.006);
+          ctx.quadraticCurveTo(cx - s * 0.03, noseY + s * 0.022, cx, noseY + s * 0.02);
+          ctx.quadraticCurveTo(cx + s * 0.03, noseY + s * 0.022, cx + s * 0.04, noseY - s * 0.006);
+        });
       } else {
-        // 常态：嘴角向下的「不爽」弧
-        ctx.lineWidth = s * 0.012;
-        ctx.beginPath();
-        ctx.moveTo(cx - s * 0.05, mouthY + s * 0.012);
-        ctx.quadraticCurveTo(cx, mouthY - s * 0.02, cx + s * 0.05, mouthY + s * 0.012);
-        ctx.stroke();
+        stroke(s * 0.012, () => { ctx.moveTo(cx - s * 0.03, noseY); ctx.quadraticCurveTo(cx, noseY + s * 0.02, cx + s * 0.03, noseY); });
       }
-      // 汗滴（给定颜色即画在右额）
+      if (mood === "grit") {
+        // 鼻梁皱纹
+        for (const dy of [-0.03, -0.018]) stroke(s * 0.006, () => { ctx.moveTo(cx - s * 0.02, noseY + s * dy); ctx.lineTo(cx + s * 0.02, noseY + s * dy - s * 0.004); });
+      }
+
+      // ---- 八字胡（长相 1 常驻） ----
+      const mustache = v === 1;
+      if (mustache) {
+        fill(() => {
+          ctx.moveTo(cx - s * 0.085, mouthY - s * 0.028);
+          ctx.quadraticCurveTo(cx, mouthY - s * 0.062, cx + s * 0.085, mouthY - s * 0.028);
+          ctx.quadraticCurveTo(cx + s * 0.04, mouthY - s * 0.012, cx, mouthY - s * 0.024);
+          ctx.quadraticCurveTo(cx - s * 0.04, mouthY - s * 0.012, cx - s * 0.085, mouthY - s * 0.028);
+        });
+      }
+
+      // ---- 嘴 ----
+      const my = mustache ? mouthY + s * 0.016 : mouthY;
+      if (mood === "grit") {
+        // 咬牙：白牙块 + 中缝 + 两道牙缝
+        ctx.fillStyle = "#ffffff";
+        fill(() => ctx.roundRect(cx - s * 0.08, my - s * 0.03, s * 0.16, s * 0.06, s * 0.022));
+        ctx.strokeStyle = ink;
+        stroke(s * 0.01, () => ctx.roundRect(cx - s * 0.08, my - s * 0.03, s * 0.16, s * 0.06, s * 0.022));
+        stroke(s * 0.008, () => { ctx.moveTo(cx - s * 0.08, my); ctx.lineTo(cx + s * 0.08, my); });
+        for (const dx of [-0.04, 0.04]) stroke(s * 0.005, () => { ctx.moveTo(cx + s * dx, my - s * 0.02); ctx.lineTo(cx + s * dx, my + s * 0.02); });
+        ctx.fillStyle = ink;
+      } else if (mood === "angry") {
+        // 怒视：张开的深色嘴
+        ctx.fillStyle = sub(recipe.mouth ?? (v === 3 ? "#b3261e" : "#5a1a12"));
+        fill(() => ctx.ellipse(cx, my + s * 0.006, s * 0.055, s * 0.026, 0, 0, Math.PI * 2));
+        ctx.fillStyle = ink;
+      } else {
+        switch (v) {
+          case 1:   // 八字胡：胡子下一张微张的小嘴
+            ctx.fillStyle = sub(recipe.mouth ?? "#5a1a12");
+            fill(() => ctx.ellipse(cx, my + s * 0.004, s * 0.03, s * 0.012, 0, 0, Math.PI * 2));
+            ctx.fillStyle = ink;
+            break;
+          case 2:   // 乐呵：小小的 D 形笑嘴
+            ctx.fillStyle = sub(recipe.mouth ?? "#8a2a1e");
+            fill(() => { ctx.moveTo(cx - s * 0.03, my - s * 0.006); ctx.lineTo(cx + s * 0.03, my - s * 0.006); ctx.quadraticCurveTo(cx, my + s * 0.04, cx - s * 0.03, my - s * 0.006); });
+            stroke(s * 0.006, () => { ctx.moveTo(cx - s * 0.03, my - s * 0.006); ctx.lineTo(cx + s * 0.03, my - s * 0.006); });
+            ctx.fillStyle = ink;
+            break;
+          case 3:   // 困倦：红色下弯月牙嘴
+            ctx.fillStyle = sub(recipe.mouth ?? "#b3261e");
+            fill(() => { ctx.moveTo(cx - s * 0.05, my + s * 0.012); ctx.quadraticCurveTo(cx, my - s * 0.03, cx + s * 0.05, my + s * 0.012); ctx.quadraticCurveTo(cx, my - s * 0.004, cx - s * 0.05, my + s * 0.012); });
+            ctx.fillStyle = ink;
+            break;
+          default:  // 闷闷：嘴角向下的「不爽」弧
+            stroke(s * 0.012, () => { ctx.moveTo(cx - s * 0.05, my + s * 0.012); ctx.quadraticCurveTo(cx, my - s * 0.02, cx + s * 0.05, my + s * 0.012); });
+        }
+      }
+
+      // ---- 汗滴（给定颜色即画在右额） ----
       if (recipe.sweat) {
         ctx.fillStyle = sub(recipe.sweat);
-        const sx = cx + s * 0.14, sy = s * 0.44;
-        ctx.beginPath();
-        ctx.moveTo(sx, sy - s * 0.03);
-        ctx.quadraticCurveTo(sx + s * 0.025, sy + s * 0.012, sx, sy + s * 0.022);
-        ctx.quadraticCurveTo(sx - s * 0.025, sy + s * 0.012, sx, sy - s * 0.03);
-        ctx.fill();
+        const sx = cx + s * 0.15, sy = s * 0.44;
+        fill(() => {
+          ctx.moveTo(sx, sy - s * 0.032);
+          ctx.quadraticCurveTo(sx + s * 0.026, sy + s * 0.012, sx, sy + s * 0.024);
+          ctx.quadraticCurveTo(sx - s * 0.026, sy + s * 0.012, sx, sy - s * 0.032);
+        });
       }
       break;
     }
@@ -334,12 +415,13 @@ export class MaterialResolver {
   /** 解析材质；playerIndex 决定 "$player" 取哪一色 */
   get(spec: MaterialSpec, playerIndex = 0): THREE.Material {
     const player = this.playerColor(playerIndex);
-    const key = `${player}|${JSON.stringify(spec)}`;
+    const idxTag = spec.texture?.kind === "procedural" && recipeUsesIndex(spec.texture.recipe) ? `|i${playerIndex}` : "";
+    const key = `${player}${idxTag}|${JSON.stringify(spec)}`;
     const hit = this.materials.get(key);
     if (hit) return hit;
 
     const color = spec.color === "$player" ? player : spec.color ?? "#ffffff";
-    const map = spec.texture ? this.texture(spec.texture, player, spec.repeat) : null;
+    const map = spec.texture ? this.texture(spec.texture, player, playerIndex, spec.repeat) : null;
     let mat: THREE.Material;
     if (spec.unlit) {
       mat = new THREE.MeshBasicMaterial({ color: map ? "#ffffff" : color, map: map ?? undefined, transparent: spec.opacity != null, opacity: spec.opacity ?? 1 });
@@ -359,8 +441,9 @@ export class MaterialResolver {
     return mat;
   }
 
-  private texture(spec: TextureSpec, player: string, repeat?: [number, number]): THREE.Texture | null {
-    const key = spec.kind === "image" ? `img|${spec.url}|${repeat}` : `${recipeKey(spec.recipe, spec.size ?? 256, player)}|${repeat}`;
+  private texture(spec: TextureSpec, player: string, playerIndex: number, repeat?: [number, number]): THREE.Texture | null {
+    const idxTag = spec.kind === "procedural" && recipeUsesIndex(spec.recipe) ? `|i${playerIndex}` : "";
+    const key = spec.kind === "image" ? `img|${spec.url}|${repeat}` : `${recipeKey(spec.recipe, spec.size ?? 256, player)}${idxTag}|${repeat}`;
     const hit = this.textures.get(key);
     if (hit) return hit;
     let tex: THREE.Texture;
@@ -373,7 +456,7 @@ export class MaterialResolver {
       canvas.width = size; canvas.height = size;
       const ctx = canvas.getContext("2d");
       if (!ctx) return null;
-      paintRecipe(ctx, size, spec.recipe, player);
+      paintRecipe(ctx, size, spec.recipe, player, playerIndex);
       tex = new THREE.CanvasTexture(canvas);
     }
     tex.colorSpace = THREE.SRGBColorSpace;

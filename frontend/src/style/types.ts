@@ -17,8 +17,12 @@ export type ProceduralRecipe =
   | { type: "fringe"; base: string; fringe: string; count?: number }
   /** 沥青路面：u 方向为行车方向；实线路缘 + 车道间虚线（lanes 条车道），dash 为虚线占比 */
   | { type: "road"; base: string; line: string; edge?: string; lanes?: number; dash?: number; seed?: number }
-  /** 卡通脸：画在驭象师头球的正前方（+x），mood 决定眉眼嘴（平静 / 怒视 / 咬牙冒汗） */
-  | { type: "face"; skin: string; ink: string; mood: "calm" | "angry" | "grit"; mouth?: string; sweat?: string }
+  /**
+   * 卡通脸：画在驭象师头球的正前方（+x）。mood 决定情绪档（平静 / 怒视 / 咬牙冒汗）；
+   * variant 决定长相（0 闷闷 / 1 八字胡 / 2 乐呵 / 3 困倦），写 "$player" 则按玩家序号轮选，用于区分不同玩家；
+   * skin 可给数组，同样按玩家序号取色。
+   */
+  | { type: "face"; skin: string | string[]; ink: string; mood: "calm" | "angry" | "grit"; variant?: number | "$player"; mouth?: string; sweat?: string }
   /** 圆形标牌 / 车牌：底色 + 环 + 居中文字（限速牌、车牌号等） */
   | { type: "label"; base: string; ink: string; text: string; ring?: string; shape?: "circle" | "rect" };
 
