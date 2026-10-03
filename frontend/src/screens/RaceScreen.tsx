@@ -43,6 +43,8 @@ interface RankEntry {
 const RESULT_WAIT_MS = 8000;
 /** 结算弹出后「再来一局」按钮的锁定秒数 */
 const AGAIN_LOCK_SECONDS = 3;
+/** 猛抽时象鸣的音量倍率（组件层统一放大，不分风格；风格包 sfx.trumpet.gain 在此基础上再乘） */
+const TRUMPET_GAIN = 1.6;
 
 const WHIP_TEXTS = ["抽！象！💥", "快象加鞭！🐘", "象前冲！⚡", "万象更新！✨", "抽象起来！🔥", "具象化加速！💨"];
 const RANK_TITLES = ["冠军【抽象派大师】", "亚军【印象派】", "季军【具象派】", "殿军【盲人摸象】"];
@@ -130,7 +132,7 @@ export function RaceScreen({ demo = false }: { demo?: boolean }) {
       // 抽得够猛时大象扬鼻长鸣（节流 1.6s）
       if (me.boost >= 1.4 && performance.now() - lastTrumpet.current > 1600) {
         lastTrumpet.current = performance.now();
-        playSfx("trumpet", 0.7);
+        playSfx("trumpet", TRUMPET_GAIN);
       }
       transport.send({
         t: "elephant_boost",

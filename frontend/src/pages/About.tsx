@@ -34,7 +34,7 @@ export function About() {
           <li>联机：WebRTC DataChannel 网状直连传画作与赛况；Cloudflare Worker + Durable Objects 提供房间信令与兜底中转。</li>
           <li>风格系统：大象/驭象师材质、赛道装饰、展台、界面配色、音乐与音效由「风格包」声明，机制与内容解耦。</li>
           <li>音频：音效与回落曲目由 WebAudio 程序化合成；风格包可附带正规渠道获得的音频文件，播完一遍自动渐出、再起渐入循环。
-            「宝莱坞狂欢」的鞭响取自 Wikimedia Commons 公有领域录音《Peitschen.ogg》（Basel），象鸣取自 CC0 录音《Elephant voice - trumpeting.ogg》（Info-farmer）。</li>
+            「宝莱坞狂欢」的鞭响取自 <a href="https://commons.wikimedia.org/wiki/File:Whip-sound.ogg" target="_blank" rel="noreferrer">Whip Sound</a>（Mike Koenig，<a href="https://creativecommons.org/licenses/by/3.0/" target="_blank" rel="noreferrer">CC BY 3.0</a>），象鸣取自 Wikimedia Commons CC0 录音《Elephant voice - trumpeting.ogg》（Info-farmer）。</li>
         </ul>
 
         <h2>文化致敬</h2>

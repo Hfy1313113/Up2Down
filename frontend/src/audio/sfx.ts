@@ -161,7 +161,7 @@ const presets: Record<SynthPreset, Preset> = {
     f.type = "lowpass"; f.frequency.value = 1800;
     const g = ctx.createGain();
     g.gain.setValueAtTime(0.0001, t0);
-    g.gain.linearRampToValueAtTime(0.3 * gain, t0 + 0.05);
+    g.gain.linearRampToValueAtTime(0.42 * gain, t0 + 0.05);
     g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.7);
     o.connect(f).connect(g).connect(dest);
     o.start(t0); lfo.start(t0);
