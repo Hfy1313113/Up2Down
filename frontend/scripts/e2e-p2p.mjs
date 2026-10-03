@@ -90,13 +90,13 @@ for (let i = 0; i < N; i++) {
 // ---- 加入房间 ----
 for (let i = 0; i < N; i++) {
   const p = pages[i];
-  await p.goto(url);
-  await p.fill('input[placeholder*="代号"]', `骑手${i}`);
+  await p.goto(`${url}play`);
+  await p.fill('input[placeholder*="代号"]', `抽象派${i}`);
   const digitBoxes = await p.$$(".digit-box");
   for (let d = 0; d < 4; d++) {
     await digitBoxes[d].fill(ROOM[d]);
   }
-  await p.click('button:has-text("进入房间")');
+  await p.click('button:has-text("进入象限")');
   await p.waitForSelector(".players", { timeout: 15_000 });
 }
 await pages[0].waitForFunction(
@@ -119,7 +119,7 @@ console.log("  通道状态:", links.join(" | "));
 console.log("PASS 全部 DataChannel 直连（游戏数据未经 Cloudflare）");
 
 // ---- 房主开局 ----
-await pages[0].click("button:has-text(\"开始比赛\")");
+await pages[0].click("button:has-text(\"开始抽象\")");
 for (let i = 0; i < N; i++) {
   try {
     await pages[i].waitForSelector(".draw-canvas", { timeout: 15_000 });
@@ -134,13 +134,13 @@ for (let i = 0; i < N; i++) {
 const lateCtx = await browser.newContext({ viewport: { width: 1100, height: 760 } });
 const late = await lateCtx.newPage();
 late.on("pageerror", e => console.log("  [late] pageerror:", String(e)));
-await late.goto(url);
+await late.goto(`${url}play`);
 await late.fill('input[placeholder*="代号"]', "迟到者");
 {
   const digitBoxes = await late.$$(".digit-box");
   for (let d = 0; d < 4; d++) await digitBoxes[d].fill(ROOM[d]);
 }
-await late.click('button:has-text("进入房间")');
+await late.click('button:has-text("进入象限")');
 try {
   await late.waitForSelector("text=对局进行中", { timeout: 15_000 });
 } catch {
@@ -165,7 +165,7 @@ async function drawPart(page, seed) {
 }
 
 for (let i = 0; i < N; i++) {
-  for (const part of ["腿", "头部", "屁股"]) {
+  for (const part of ["象腿", "象头", "象臀"]) {
     void part;
     await drawPart(pages[i], i);
     await pages[i].waitForTimeout(120);
