@@ -162,15 +162,16 @@ for (const p of pages) {
   await p.click(".birth button.primary");
 }
 
-// ---- 断言名次一致（确定性同算） ----
-const winners = [];
+// ---- 断言名次一致：比较完整名次列表（房主广播 race_result，各端应渲染同一份） ----
+const rankings = [];
 for (let i = 0; i < N; i++) {
   await pages[i].waitForSelector(".race-banner", { timeout: 120_000 });
-  const txt = await pages[i].locator(".race-banner h2").innerText();
-  winners.push(txt.replace(/\s+/g, " ").trim());
+  const txt = await pages[i].locator(".race-banner ol").innerText();
+  rankings.push(txt.replace(/\s+/g, " ").trim());
 }
-console.log("  名次横幅:", winners.join(" | "));
-if (new Set(winners).size !== 1) await fail("各端名次结果不一致（确定性同算被破坏）");
+console.log("  名次列表:", rankings.join(" || "));
+if (rankings.some(r => !r)) await fail("结算名次列表为空");
+if (new Set(rankings).size !== 1) await fail("各端名次结果不一致（权威结算未生效）");
 console.log("PASS 三端赛跑结果一致");
 
 await browser.close();

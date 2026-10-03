@@ -27,6 +27,17 @@ interface WhipPop {
   text: string;
 }
 
+/** 结算名次条目（房主经 race_result 广播的权威名次，各端据此渲染同一份结果） */
+interface RankEntry {
+  id: string;
+  name: string;
+  failed: boolean;
+  finishTime: number | null;
+}
+
+// 非房主本地模拟结束后最多等待房主权威结算的时长；超时（房主掉线等）则用本地名次兜底
+const RESULT_WAIT_MS = 8000;
+
 function playWhipSound() {
   try {
     const audioCtx = getAudioCtx();
@@ -88,8 +99,13 @@ export function RaceScreen({ demo = false }: { demo?: boolean }) {
   const [countdown, setCountdown] = useState<string | null>(null);
   const [result, setResult] = useState<{
     name: string;
+    crossed: boolean;   // 第一名是否真正撞线（否则按距离判定）
     list: { name: string; time: string; failed?: boolean }[];
   } | null>(null);
+  const [spectating, setSpectating] = useState(false);     // 本人已出局且抛飞动画播完 → 观战
+  const [awaitingHost, setAwaitingHost] = useState(false); // 本地模拟已结束，等待房主权威结算
+  const spectatingRef = useRef(false);
+  const resultShownRef = useRef(false);
   const [view, setView] = useState<ViewMode>("third");
   const viewRef = useRef(view);
   viewRef.current = view;
@@ -102,8 +118,33 @@ export function RaceScreen({ demo = false }: { demo?: boolean }) {
   const popSeq = useRef(0);
 
   const iAmHost = demo || (g.host != null && g.host === g.myId);
+  // rAF 闭包内需要读到最新的房主身份（房主中途掉线会移交）
+  const hostRef = useRef(iAmHost);
+  hostRef.current = iAmHost;
   const myIndex = Math.max(0, g.horses?.findIndex(h => h.id === g.myId) ?? 0);
   const myRunnerId = (g.horses && g.horses[myIndex]?.id) || (g.horses && g.horses[0]?.id) || "default";
+
+  // 结算只展示一次：房主用本地名次并广播；非房主优先使用房主广播的权威名次
+  const showResult = useCallback((rank: RankEntry[]) => {
+    if (resultShownRef.current) return;
+    resultShownRef.current = true;
+    setAwaitingHost(false);
+    playBlastSound();
+    const winner = rank.find(r => !r.failed);
+    setResult({
+      name: winner ? winner.name : "无人完赛",
+      crossed: !!winner && winner.finishTime != null,
+      list: rank.map(r => ({
+        name: r.name,
+        failed: r.failed,
+        time: r.failed
+          ? "（颠飞坠马 · 游戏失败）"
+          : r.finishTime != null
+          ? `（${r.finishTime.toFixed(1)} 秒）`
+          : "（未完赛）",
+      })),
+    });
+  }, []);
 
   // 连点加速与挥鞭逻辑：同时支持点击屏幕与键盘空格
   const handleBoostTap = useCallback((clientX?: number, clientY?: number) => {
@@ -149,10 +190,13 @@ export function RaceScreen({ demo = false }: { demo?: boolean }) {
         );
       } else if (msg.t === "horse_bucked_off" && raceRef.current) {
         raceRef.current = setRunnerBuckedOff(raceRef.current, msg.id as string);
+      } else if (msg.t === "race_result" && Array.isArray(msg.rank)) {
+        // 房主广播的权威名次：无论本地模拟是否结束都以此为准
+        showResult(msg.rank as RankEntry[]);
       }
     });
     return unsub;
-  }, []);
+  }, [showResult]);
 
   useEffect(() => {
     const canvas = canvasRef.current!;
@@ -173,6 +217,7 @@ export function RaceScreen({ demo = false }: { demo?: boolean }) {
     let last = 0;
     let cancelled = false;
     let demoAiTimer = 0;
+    let localOverAt: number | null = null;   // 非房主本地模拟结束的时间戳（等待权威结算起点）
     const timers: ReturnType<typeof setTimeout>[] = [];
 
     const frame = (now: number) => {
@@ -214,26 +259,35 @@ export function RaceScreen({ demo = false }: { demo?: boolean }) {
         }
       }
 
-      const myFlightDone = me?.buckedOff && me.interactionTimer <= 0;
+      // 自己被颠飞且抛飞动画播完 → 转为观战（镜头跟随领跑者），不提前结算
+      if (me?.buckedOff && me.interactionTimer <= 0 && !spectatingRef.current) {
+        spectatingRef.current = true;
+        setSpectating(true);
+      }
 
-      // 当全场完赛，或者自身已被颠飞且 3.2 秒升天动画已完全播放完毕时，炸裂弹出结算页面
-      if ((raceRef.current.over || myFlightDone) && !result) {
-        playBlastSound();
-        const rank = ranking(raceRef.current);
-        const winner = rank.find(r => !r.failed);
-        setResult({
-          name: winner ? winner.name : "无人完赛",
-          list: rank.map(r => ({
-            name: r.name,
-            failed: r.failed,
-            time: r.failed
-              ? "（颠飞坠马 · 游戏失败）"
-              : r.finishTime != null
-              ? `（${r.finishTime.toFixed(1)} 秒）`
-              : "（未完赛）",
-          })),
-        });
-        return;
+      // 已展示结算（例如先收到了房主广播的 race_result）→ 停止循环
+      if (resultShownRef.current) return;
+
+      if (raceRef.current.over) {
+        if (hostRef.current) {
+          // 房主：本地名次即权威名次，广播给全员后展示
+          const rank: RankEntry[] = ranking(raceRef.current).map(r => ({
+            id: r.id, name: r.name, failed: r.failed, finishTime: r.finishTime,
+          }));
+          transport.send({ t: "race_result", rank });
+          showResult(rank);
+          return;
+        }
+        // 非房主：等待房主的 race_result；超时（房主掉线且未移交到自己）用本地名次兜底
+        if (localOverAt == null) {
+          localOverAt = now;
+          setAwaitingHost(true);
+        } else if (now - localOverAt > RESULT_WAIT_MS) {
+          showResult(ranking(raceRef.current).map(r => ({
+            id: r.id, name: r.name, failed: r.failed, finishTime: r.finishTime,
+          })));
+          return;
+        }
       }
       raf = requestAnimationFrame(frame);
     };
@@ -343,8 +397,17 @@ export function RaceScreen({ demo = false }: { demo?: boolean }) {
         </div>
       )}
 
-      {/* 颠飞下马出局：第二人称动画特写、震感速线与战马回望视界 */}
-      {buckedOff && !result && (
+      {/* 出局观战 / 等待房主结算 的状态提示 */}
+      {!result && (spectating || awaitingHost) && (
+        <div className="absolute top-3.5 left-1/2 -translate-x-1/2 z-30 pointer-events-none w-[92vw] max-w-xs text-center">
+          <div className="inline-block bg-slate-900/90 border-2 border-amber-400 text-amber-200 text-xs sm:text-sm font-bold px-3.5 py-1.5 rounded-xl shadow-xl">
+            {awaitingHost ? "全场完赛，等待房主结算…" : "你已出局 · 观战中，等待全场完赛"}
+          </div>
+        </div>
+      )}
+
+      {/* 颠飞下马出局：第二人称动画特写、震感速线与战马回望视界（抛飞动画播完后转入观战） */}
+      {buckedOff && !spectating && !result && (
         <>
           <div className="buckoff-comic-overlay fixed inset-0 pointer-events-none z-20" />
           <div className="absolute top-3.5 left-1/2 -translate-x-1/2 z-30 pointer-events-none flex flex-col items-center gap-1 w-[92vw] max-w-xs">
@@ -422,7 +485,8 @@ export function RaceScreen({ demo = false }: { demo?: boolean }) {
             <p className="text-slate-600 text-xs sm:text-sm mb-3">
               {result.name !== "无人完赛" ? (
                 <>
-                  <b className="text-[#e2703a] font-black">{result.name}</b> 率先撞线，物理连杆动力学决胜！
+                  <b className="text-[#e2703a] font-black">{result.name}</b>
+                  {result.crossed ? " 率先撞线，物理连杆动力学决胜！" : " 跑得最远，按距离判定夺冠！"}
                 </>
               ) : (
                 <span className="text-red-600 font-bold">全员颠飞下马，无人生还！</span>

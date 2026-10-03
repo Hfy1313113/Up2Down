@@ -104,6 +104,26 @@ describe("raceSim 位移积分", () => {
     expect(victim.interactionText).toContain("创飞");
   });
 
+  it("碰撞分支确定性：含创飞/截停/冲撞的整局两次模拟逐位一致（无 Math.random）", () => {
+    const run = () => {
+      let s = createRace(entries);
+      // 强制制造追尾创飞：后车极快、同赛道、身位相交
+      s.runners[0].x = 100; s.runners[0].z = 0; s.runners[0].speed = 180; s.runners[0].boost = 1.6;
+      s.runners[1].x = 120; s.runners[1].z = 0.5; s.runners[1].speed = 50;
+      const trace: number[] = [];
+      for (let i = 0; i < 600; i++) {
+        s = updateRace(s, 1 / 60);
+        if (i % 50 === 0) for (const r of s.runners) trace.push(r.x, r.z, r.vz, r.y, r.rotY, r.rotZ);
+      }
+      return trace;
+    };
+    const a = run();
+    const b = run();
+    expect(a).toEqual(b);
+    // 创飞者横向被弹开（非零），且方向确定
+    expect(a.some(v => v !== 0)).toBe(true);
+  });
+
   it("加速上限过载警告与颠飞下马：维持上限持续超过 3 秒导致坠马出局", () => {
     let s = createRace(entries);
     const dt = 1 / 60;

@@ -366,7 +366,8 @@ export function updateRace(state: RaceState, dt: number): RaceState {
             frontRunner.vy = 13;
             frontRunner.y = 0.5;
             frontRunner.launchedTimer = 1.1;
-            frontRunner.vz = (Math.random() - 0.5) * 6;
+            // 被创飞者向远离追尾者的一侧弹开（确定性：不使用 Math.random，保证各端同算一致）
+            frontRunner.vz = (frontRunner.z >= rearRunner.z ? 1 : -1) * 3;
             frontRunner.cooldownTimer = 2.0;
             frontRunner.interactionText = "创飞！💥";
             frontRunner.interactionTimer = 1.2;
