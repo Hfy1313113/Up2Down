@@ -22,7 +22,7 @@ src/
 ├── screens/        LobbyScreen / DrawScreen / useDrawCanvas / BirthScreen / WaitingScreen / RaceScreen
 │   └── audio.ts       全局唯一 AudioContext（所有合成音效共用）
 ├── state/game.ts   阶段机、房主协调、画作汇总
-├── demo/demo.tsx   仅开发态：?demo=birth / ?demo=race 直接用合成模型渲染
+├── demo/demo.tsx   仅开发态：?demo=draw / ?demo=birth / ?demo=race 直接用合成模型渲染
 ├── App.tsx         阶段 → 屏幕映射
 └── main.tsx        入口
 ```
@@ -35,5 +35,10 @@ src/
   不感知消息走的是 P2P 还是兜底中转。
 - **状态层不持画作**：画作体积大且渲染不需要，统一放在 `state/game.ts` 模块内的
   `strokeArchive`（普通 Map，不进 React 状态）。
+- **名次只认房主**：各端的 `raceSim` 只负责呈现，最终名次来自房主广播的 `race_result`；
+  `RaceScreen` 不自行宣布胜负（房主掉线的 8s 兜底除外）。
+- **流程消息只认房主、状态消息只认本人**：上层按传输层标注的 `_from` 校验，
+  不信任消息体里的 `id`。
+- **样式只写在 JSX 上**：`index.css` 不含元素级规则，避免未分层样式压过 Tailwind 工具类。
 
 详见 [ARCHITECTURE.md](ARCHITECTURE.md) 与 [QUICK_START.md](QUICK_START.md)。

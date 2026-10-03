@@ -4,7 +4,8 @@ Cloudflare Worker + Durable Objects，是全项目唯一的服务端。它同时
 所以整个项目**只需要这一个 Cloudflare 项目**：
 
 - 静态托管（`[assets]` → `../frontend/dist`，未命中路径按 SPA 回落 `index.html`）
-- 房间成员表与房主维护（`rooms/<房间号>` 一个 Durable Object 实例）
+- 房间成员表与房主维护（`rooms/<房间号>` 一个 Durable Object 实例；满 4 人回 `error` 并关闭连接）
+- 本轮状态广播（`room_state.round` / `roundSeq`：开局后进房者为候场者，不参与本局）
 - WebRTC 信令转发（`signal`，不解析 SDP/ICE 内容）
 - 无法直连时的兜底转发（`relay` 定向 / `relay_all` 广播）
 - 保活（`ping` → `pong`）

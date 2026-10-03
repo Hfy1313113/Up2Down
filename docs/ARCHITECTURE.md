@@ -16,17 +16,20 @@
 
 - **数据面**：`RTCDataChannel`（每对玩家一条，`ordered: true`）。网状拓扑，4 人 = 每端 3 条连接。
   画作提交、开赛载荷等全部点对点传输，**不产生任何 Cloudflare 流量**。
-- **控制面**：Worker 上的 WebSocket。承担四件事：房间成员表、WebRTC 信令转发、
-  保活（25s ping）、绘制阶段超时兜底。Worker 不保存画作，出口流量为 KB 级。
+- **控制面**：Worker 上的 WebSocket。承担五件事：房间成员表（含满员拒绝）、本轮状态
+  （`round` / `roundSeq`，用于候场判定）、WebRTC 信令转发、保活（25s ping）、绘制阶段超时兜底。
+  Worker 不保存画作，出口流量为 KB 级。
 - **降级**：某条 P2P 链路建连失败（对称 NAT / 公共 STUN 穿不透）时，该 peer 的游戏消息
   自动改走控制面 `relay` 定向转发，其余 peer 仍走 P2P；界面在大厅/等待屏显示
   「P2P × n · 兜底中转 × m」，用户可见但不需干预。
 
 ## 前端结构
 
-- **Vite + React + TypeScript + Tailwind CSS**，纯静态产物，由同一个 Worker 的 `[assets]` 托管（也可单独挂 Pages）。采用 Tailwind CSS 响应式整体框架，深度适配手机、平板与桌面端，确保在各类分辨率与视口比例下杜绝元素堆叠或相互遮挡。
+- **Vite + React + TypeScript + Tailwind CSS**，纯静态产物，由同一个 Worker 的 `[assets]` 托管（也可单独挂 Pages）。
+  样式全部由 JSX 上的 Tailwind 工具类决定，`index.css` 只在 `@layer base/components` 放基础与动画样式，
+  不写元素级规则（未分层规则会压过工具类）。
 - `src/game/`：纯算法，无 DOM 依赖——分部位识别（`recognize.ts`）、速度公式（`metrics.ts`）、
-  步态相位（`gait.ts`）、赛跑物理积分与碰撞动力学（`raceSim.ts`，含连点加速脉冲衰减、极限加速过载监测、连续超上限 3 秒颠飞下马出局机制、冲撞/拌腿/美式截停/创飞交互）。可被单测直接驱动。
+  步态相位（`gait.ts`）、赛跑物理积分与碰撞动力学（`raceSim.ts`，含连点加速脉冲衰减、极限加速过载监测、连续超上限 3 秒颠飞下马出局机制、冲撞/拌腿/美式截停/创飞交互，**不含随机数**）。可被单测直接驱动。
 - `src/three/`：three.js 场景层。`horseMesh.ts` 由识别模型生成 3D 马及骑手模型（双关节连杆按步态驱动，骑手支持连点挥鞭抽打马屁股动力学以及颠飞出局的人马分离、四肢大风车失控抛飞姿态）；
   `raceScene.ts` 渲染赛道、上帝视角聚焦本马相机、第一人称自由转头环视、第二人称战马回眸目送受难骑手特写、物理位移与冲线礼花筒粒子系统；`birthScene.ts` 渲染诞生仪式舞台。
 - `src/state/game.ts`：阶段机 `lobby → draw → birth → waiting → race` 与房主协调逻辑。
@@ -77,6 +80,10 @@ again（房主）──> 数据面广播 + 控制面复位：回大厅
 - 公共 STUN（`stun.l.google.com:19302`）在部分校园/企业网络下穿不透，此时自动走控制面兜底，
   延迟与流量略升但仍可玩；如需完全直连可在 `frontend/src/net/transport.ts` 的 `RTC_CONFIG`
   中补充自建 STUN/TURN。
-- Durable Object 的内存房间状态随实例回收而消失，房间空置后成员自然清空。
+- Durable Object 的内存房间状态随实例回收而消失，房间空置后成员自然清空。WebSocket 使用
+  非休眠模式，房间有人期间 DO 持续活跃计费；朋友局规模下免费额度足够，规模化前应改为 Hibernation API。
 - 绘制阶段总时限由服务端兜底（`signaling/src/index.ts` 的 `DRAW_TIMEOUT_MS = 200s`），
   每个部位 50s 由前端本地计时。
+- 非房主端看到的他人位置是近似值（连点加速经网络到达有延迟），名次以房主广播的 `race_result` 为准；
+  房主掉线且未移交到本端时，本端最多等待 8s 后用本地名次兜底。
+- 控制面断线重连会拿到新的 pid，重连者在本轮内会被视为候场者；赛中断线的玩家需等下一局。

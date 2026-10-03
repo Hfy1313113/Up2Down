@@ -46,4 +46,6 @@ WebSocket 关闭或报错即把该玩家移出房间；房主离开则移交，�
 ## 协议用例
 
 `scripts/*.mjs` 用 Node 内置 WebSocket 直连 `wrangler dev`，每次运行使用随机房间号，
-覆盖：成员与房主移交、信令转发、定向/广播兜底、`done` 状态、超时事件（含房主断线与取消）。
+覆盖：成员与房主移交、满员拒绝（`error` + 关闭）、本轮状态流转（`phase_start` → `draw`、
+中途加入者 pid 序号 > `roundSeq`、`round_over` → `race`、`again` → `idle`、参与者全部离开后作废）、
+信令转发、定向/广播兜底、`done` 状态、超时事件（含房主断线与取消）。

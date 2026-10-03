@@ -53,12 +53,15 @@ C1 ─join(name)─────────► S ──joined(id)──► C1
                           └─room_state───► C1 C2 C3
 C2/C3 加入后，各端依成员表建立 DataChannel（id 较小者发 offer，信令经 S 转发）
 C1 ─relay/DC: draw_phase─► C2 C3       （房主本地同步进入绘制）
-C1 ─phase_start────────► S             （服务端启动 200s 超时兜底）
+C1 ─phase_start────────► S ──room_state{round:draw,roundSeq}──► 全员
+                                        （服务端启动 200s 超时兜底；此后加入的 C4 为候场者）
 C1/C2/C3 ─DC: done(strokes)─► 全员      （房主收集画作）
-全员 done ─► C1(房主) ─DC: race{horses}─► C2 C3
-              └─round_over────────────► S（取消防兜底）
+参与者全员 done ─► C1(房主) ─DC: race{horses}─► C2 C3   （C4 不在名单，留在大厅）
+              └─round_over────────────► S（取消兜底，round=race）
 超时兜底：S ──race_timeout──► 全员 ──► 当前房主组装并广播 race
-C1 ─DC: again──────────► C2 C3 ；─notify: again─► S（复位计时）
+赛中：各端 ─DC: horse_boost / horse_bucked_off─► 全员
+C1 本地模拟结束 ─DC: race_result{rank}─► C2 C3   （权威名次，各端据此结算）
+C1 ─DC: again──────────► C2 C3 ；─notify: again─► S（复位计时，round=idle，C4 随下一局开始）
 ```
 
 ## 房间规则

@@ -9,7 +9,12 @@ lobby ──房主 startGame()──► draw ──三部位画完 prepareBirth(
   ▲                                                            │ sendDone()
   │ playAgain() / resetToLobby()                               ▼
   └──────────────── race ◄── enterRace(race 消息) ──────── waiting
+                     │ 本地模拟结束：房主广播 race_result；非房主等待 race_result（最多 8s）
+                     │ 被颠飞：第二人称特写 → 观战（跟随领跑者）→ 与全员同时结算
 ```
+
+中途加入者（服务端 `round ≠ idle` 时进房）停留在 `lobby`，收到不含自己的 `race` 时不进入赛跑，
+`again` 后随下一局进入 `draw`。
 
 - 房主（`host === transport.id`）负责：广播 `draw_phase`、判定全员提交、汇总画作并广播 `race`，以及完赛时广播权威名次 `race_result`。
 - 绘制阶段每个部位独立计时：`finishCurrentPart()` 切换部位时会重新调用 `startPartTimer()`，无论上一部位是手动完成还是超时结束，下一部位都从完整的 50s 开始。
