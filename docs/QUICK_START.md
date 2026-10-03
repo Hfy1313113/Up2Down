@@ -76,6 +76,22 @@ node scripts/timeout-verify.mjs     # 超时兜底事件（含房主断线）
 - Cloudflare 项目名：`up2down`
 - 生产域名（唯一公开域名）：`https://up2down.plutokeating.beer`
 
+**Git 自动部署（推荐）**：Worker 通过 Cloudflare Workers Builds 连接 GitHub 仓库 `Hfy1313113/Up2Down`，
+`main` 每次 push 自动执行「安装 → 构建前端 → `wrangler deploy`」，其他分支只上传预览版本。Cloudflare 侧配置：
+
+| 配置项 | 值 |
+|---|---|
+| Root directory | `signaling` |
+| Build command | `npm run build:ci`（即 `npm --prefix ../frontend ci && npm --prefix ../frontend run build`） |
+| Deploy command | `npx wrangler deploy` |
+| 环境变量（可选） | `NODE_VERSION = 24` |
+
+Workers Builds 会先在 Root directory 自动 `npm ci`（装好 wrangler），再跑 Build command、Deploy command；
+`wrangler.toml` 的 `[assets] directory = "../frontend/dist"` 相对 `signaling/` 解析，与本机一致。
+连接 GitHub 需要仓库所有者在 GitHub 上安装「Cloudflare Workers and Pages」App 并勾选本仓库。
+
+**本机手动部署**：
+
 ```bash
 cd signaling
 npx wrangler login
@@ -84,7 +100,7 @@ npm run deploy                      # 先构建 frontend/dist，再 wrangler dep
 
 `npm run deploy` 会先执行 `npm --prefix ../frontend run build`，避免把过期的 `dist` 发上线；
 建议附带提交号便于追溯：`npx wrangler deploy --message "$(git rev-parse --short HEAD)"`。
-放在 `frontend/public/styles/` 下的音频文件会随 `dist` 一起部署。
+放在 `frontend/public/styles/` 下的音频文件会随 `dist` 一起部署。仅 push 到 GitHub 不会更新线上，除非已接好自动部署。
 
 一个 Worker 同时提供：`/`、`/play`、`/about`、`/privacy`、`/terms` → 前端静态产物（SPA 回落）、`/health` → 健康检查、
 `/rooms/<房间号>` → WebSocket 信令与 Durable Object 房间。把 https://up2down.plutokeating.beer

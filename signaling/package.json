@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "wrangler dev",
     "check": "tsc --noEmit",
+    "build:ci": "npm --prefix ../frontend ci && npm --prefix ../frontend run build",
     "deploy": "npm --prefix ../frontend run build && wrangler deploy"
   },
   "devDependencies": {

@@ -35,9 +35,14 @@ node scripts/timeout-verify.mjs  # 超时兜底事件（含房主断线、round_
 ```bash
 npx wrangler login
 npm run deploy                   # 先构建 ../frontend/dist，再 wrangler deploy 到 up2down
+npm run build:ci                 # Workers Builds 用的构建命令：npm ci + 构建 ../frontend/dist（不部署）
 npx wrangler deploy --dry-run    # 只校验 Worker 打包，不上传（不会重新构建前端）
 npm run check                    # tsc --noEmit 类型检查
 ```
+
+Git 自动部署：Worker 在 Cloudflare 的「Settings → Build」连接 GitHub 仓库，Root directory `signaling`、
+Build command `npm run build:ci`、Deploy command `npx wrangler deploy`，`main` 每次 push 自动上线，其他分支只上传预览版本。
+详见 [docs/QUICK_START.md](../../docs/QUICK_START.md) 的部署章节。
 
 部署后 https://up2down.plutokeating.beer 即完整站点：`/` 前端、`/rooms/<房间号>` 信令，
 不需要额外配置前端地址变量。
