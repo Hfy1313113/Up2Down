@@ -12,7 +12,7 @@
 
 | 方向 | t | 关键字段 | 说明 |
 |---|---|---|---|
-| C→S | `join` | `name` | 加入房间；满 4 人回 `error` |
+| C→S | `join` | `name` | 加入房间；满 4 人回 `error{for:"join"}` 并以 1008 关闭连接，前端据此立即提示失败 |
 | S→C | `joined` | `id`, `room` | 单播：分配的玩家 id |
 | S→C | `room_state` | `room`, `host`, `players[{id,name,done}]` | 广播：成员变化；前端据此建立/拆除 P2P 连接 |
 | C→S | `signal` | `to`, `data{kind:"offer"\|"answer",sdp}` / `data{kind:"candidate",candidate}` | WebRTC 信令，Worker 原样转发并附 `from` |
@@ -31,9 +31,14 @@
 |---|---|---|---|
 | 房主→全员 | `draw_phase` | — | 进入绘制阶段，各端本地倒计时 |
 | 玩家→全员 | `done` | `id`, `name`, `strokes:{legs,head,butt}` | 提交自己的画作；房主据此汇总 |
-| S→C（控制面） | `player_done` | `id`, `name` | 成员提交进度（走控制面路径时的等价通知，不含画作） |
 | 房主→全员 | `race` | `horses[{id,name,strokes}]` | 开赛：携带全部画作（未提交者 `strokes=null`，前端合成默认马） |
+| 玩家→全员 | `horse_boost` | `id`, `boost`, `whip` | 赛中连点加速同步（仅影响对端的呈现，不参与名次判定） |
+| 玩家→全员 | `horse_bucked_off` | `id` | 该玩家过载颠飞出局 |
+| 房主→全员 | `race_result` | `rank[{id,name,failed,finishTime}]` | 房主本地模拟结束时广播的**权威名次**，各端据此渲染同一份结算；非房主最多等待 8s，超时才用本地名次兜底 |
 | 房主→全员 | `again` | — | 回大厅重开一局 |
+
+`player_done`（S→C）只在客户端把 `done` 直接发到控制面时产生；当前前端的 `done` 走数据面/`relay`，
+因此实际对局中不会出现，保留仅为协议兼容。
 
 前端的 `_close` / `_rejoined` 为传输层内部事件（控制面断开、重连后拿到新 id），不属于对端可发的协议。
 

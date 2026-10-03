@@ -25,7 +25,7 @@
 
 ## 消息处理
 
-- `join`：满 4 人回 `error`；否则分配 pid、单播 `joined`、广播 `room_state`。
+- `join`：满 4 人回 `error{for:"join"}` 并以 1008 关闭该连接（客户端据此立即失败，不会悬挂）；否则分配 pid、单播 `joined`、广播 `room_state`。
 - `done`：标记该玩家已提交，广播 `player_done` 与新的 `room_state`。**不接收、不保存画作。**
 - `signal` / `relay`：转给目标并附 `from`；目标不存在回 `error`。
 - `relay_all`：广播给除发送者外的所有人；若内层是 `draw_phase` 则同时启动超时计时。

@@ -36,12 +36,12 @@ npm run dev
 
 ```bash
 cd frontend
-npm test                            # vitest：识别 / 速度公式 / 步态 / 赛跑积分（18 例）
+npm test                            # vitest：识别 / 速度公式 / 步态 / 赛跑积分与碰撞确定性（25 例）
 npx tsc --noEmit                    # 类型检查
 npm run build                       # 生产构建
 
 node scripts/screenshot.mjs         # 渲染截图 → shots/{birth,race-third,race-first}.png
-node scripts/e2e-p2p.mjs            # 开发形态：三客户端真实绘制 + P2P 直连 + 名次一致性
+node scripts/e2e-p2p.mjs            # 开发形态：三客户端真实绘制 + P2P 直连 + 三端完整名次列表一致
 node scripts/e2e-p2p.mjs --prod     # 生产形态：只起 Worker（它自己托管 dist），同源联机
 
 cd ../signaling
