@@ -29,7 +29,7 @@ a.ws.send(JSON.stringify({ t: "done", strokes: { legs: [{ points: [[1,1],[2,2],[
 await sleep(1600);   // 超过 900ms 超时
 const tout = last(b, "race_timeout");
 ok(tout, "超时后服务端广播 race_timeout（乙收到）");
-ok(tout && !("horses" in tout), "race_timeout 不含画作载荷（由房主端本地组赛）");
+ok(tout && !("elephants" in tout), "race_timeout 不含画作载荷（由房主端本地组赛）");
 
 // --- 场景2：房主断线后超时仍触发（新房主据此开赛） ---
 const a2 = client(`tout2-${RUN}`, "丙"), b2 = client(`tout2-${RUN}`, "丁");

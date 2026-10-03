@@ -4,12 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import { BirthScene } from "../three/birthScene";
 import { useGame, sendDone } from "../state/game";
 import { COLORS } from "../game/raceSim";
-import type { HorseModel } from "../game/types";
+import type { ElephantModel } from "../game/types";
 import { getAudioCtx } from "./audio";
 
 const OBSERVE_SECONDS = 15;
 
-function getAppraisal(model: HorseModel | null) {
+function getAppraisal(model: ElephantModel | null) {
   if (!model) return null;
   const nLegs = model.legs.length;
   let ratioAvg = 0;

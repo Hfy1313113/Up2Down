@@ -56,7 +56,7 @@ export interface TailModel {
   swing?: number;
 }
 
-export interface HorseModel {
+export interface ElephantModel {
   torso: TorsoModel;
   legs: LegModel[];
   head: HeadModel;

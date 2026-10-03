@@ -2,7 +2,7 @@
 // 腿部 / 头部 / 屁股 各自独立笔画、撤销与清空；躯干自动生成无需绘制。
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Recognize } from "../game/recognize";
-import type { HorseModel, PartStrokes, Stroke, Vec2 } from "../game/types";
+import type { ElephantModel, PartStrokes, Stroke, Vec2 } from "../game/types";
 
 export const LOGICAL_W = 960, LOGICAL_H = 640;
 export const PARTS = ["legs", "head", "butt"] as const;
@@ -185,7 +185,7 @@ export function useDrawCanvas() {
 
     // 部位骨骼预览
     if (previewRef.current) {
-      const model: HorseModel = Recognize.analyzeParts(collectAll());
+      const model: ElephantModel = Recognize.analyzeParts(collectAll());
       ctx.save();
       const scale = 1.6, bx = LOGICAL_W / 2, by = LOGICAL_H * 0.78;
       ctx.translate(bx, by); ctx.scale(scale, -scale);

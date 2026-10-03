@@ -1,9 +1,9 @@
-// horseMesh.ts —— 由识别模型生成 3D 马（THREE.Group），Birth 与 Race 共用。
+// elephantMesh.ts —— 由识别模型生成 3D 马（THREE.Group），Birth 与 Race 共用。
 // 连杆动画：每帧按 gait.ts 的 computePose 得到 thigh/fold 角度，
 // 大腿绕髋旋转、小腿相对膝盖旋转（与 legPoints 前向运动学一致）。
 import * as THREE from "three";
 import { computePose } from "../game/gait";
-import type { HorseModel, LegModel, Pose } from "../game/types";
+import type { ElephantModel, LegModel, Pose } from "../game/types";
 
 // 模型本地坐标（躯干 120 单位）→ 世界尺度
 export const WORLD_SCALE = 0.02;
@@ -11,7 +11,7 @@ export const WORLD_SCALE = 0.02;
 // 取 9 使最高约 6 个世界单位，第二人称相机能把马与骑手同时框进画面
 export const RIDER_FLY_HEIGHT = 9;
 
-export interface HorseRig {
+export interface ElephantRig {
   group: THREE.Group;
   setPose(
     pose: Pose,
@@ -72,7 +72,7 @@ function buildLeg(leg: LegModel, color: string): { root: THREE.Group; rig: LegRi
   return { root: hipGroup, rig: { hipGroup, kneeGroup, dir } };
 }
 
-export function buildHorse(model: HorseModel, color: string): HorseRig {
+export function buildElephant(model: ElephantModel, color: string): ElephantRig {
   const T = model.torso;
   const dark = shade(color, 0.72);
   const darker = shade(color, 0.5);

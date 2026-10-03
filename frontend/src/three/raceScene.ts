@@ -1,16 +1,16 @@
 // raceScene.ts —— three.js 真实 3D 赛跑场景：地面/终点门/天空/灯光，
-// 马匹由 horseMesh 生成、按 raceSim 状态驱动（raceSim 仍是唯一确定性来源，本层只消费）。
+// 马匹由 elephantMesh 生成、按 raceSim 状态驱动（raceSim 仍是唯一确定性来源，本层只消费）。
 // 支持第三人称追踪自身、第一人称自由转头环视、物理碰撞渲染与头名冲线礼花筒动画。
 import * as THREE from "three";
 import { computePose } from "../game/gait";
 import { TRACK_LEN } from "../game/raceSim";
 import type { RaceState } from "../game/raceSim";
-import { buildHorse, RIDER_FLY_HEIGHT, WORLD_SCALE, type HorseRig } from "./horseMesh";
+import { buildElephant, RIDER_FLY_HEIGHT, WORLD_SCALE, type ElephantRig } from "./elephantMesh";
 
 export type ViewMode = "third" | "first";
 
-interface HorseObj {
-  rig: HorseRig;
+interface ElephantObj {
+  rig: ElephantRig;
   textSprite: THREE.Sprite;
   spriteCanvas: HTMLCanvasElement;
   spriteTex: THREE.CanvasTexture;
@@ -32,7 +32,7 @@ export class RaceScene {
   private renderer: THREE.WebGLRenderer;
   private scene: THREE.Scene;
   private camera: THREE.PerspectiveCamera;
-  private horses: HorseObj[] = [];
+  private elephants: ElephantObj[] = [];
   private disposables: { dispose(): void }[] = [];
   private myIndex: number;
   private cameraX = 0;
@@ -50,7 +50,7 @@ export class RaceScene {
   private confettiPieces: ConfettiPiece[] = [];
   private confettiFired = false;
 
-  constructor(canvas: HTMLCanvasElement, entries: { name: string; color: string; model: import("../game/types").HorseModel }[], myIndex: number) {
+  constructor(canvas: HTMLCanvasElement, entries: { name: string; color: string; model: import("../game/types").ElephantModel }[], myIndex: number) {
     this.myIndex = myIndex;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
     this.renderer.setPixelRatio(window.devicePixelRatio);
@@ -163,7 +163,7 @@ export class RaceScene {
 
     // 马匹与碰撞浮动文案 Sprite
     entries.forEach((e) => {
-      const rig = buildHorse(e.model, e.color);
+      const rig = buildElephant(e.model, e.color);
       rig.group.scale.setScalar(S);
       this.scene.add(rig.group);
 
@@ -177,7 +177,7 @@ export class RaceScene {
       textSprite.visible = false;
       this.scene.add(textSprite);
 
-      this.horses.push({ rig, textSprite, spriteCanvas, spriteTex, lastText: null });
+      this.elephants.push({ rig, textSprite, spriteCanvas, spriteTex, lastText: null });
     });
 
     // 绑定第一人称视角转头手势
@@ -289,7 +289,7 @@ export class RaceScene {
     });
   }
 
-  private updateInteractionSprite(obj: HorseObj, text: string | null, posX: number, posY: number, posZ: number) {
+  private updateInteractionSprite(obj: ElephantObj, text: string | null, posX: number, posY: number, posZ: number) {
     if (!text) {
       obj.textSprite.visible = false;
       obj.lastText = null;
@@ -350,7 +350,7 @@ export class RaceScene {
 
     // 渲染马匹、骑手连击马鞭动作与物理姿态
     st.runners.forEach((r, i) => {
-      const obj = this.horses[i];
+      const obj = this.elephants[i];
       if (!obj) return;
       const pose = computePose(r.model, r.phase);
       obj.rig.setPose(
@@ -377,7 +377,7 @@ export class RaceScene {
     });
 
     const me = st.runners[this.myIndex] ?? st.runners[0];
-    const myObj = this.horses[this.myIndex] ?? this.horses[0];
+    const myObj = this.elephants[this.myIndex] ?? this.elephants[0];
     const pose = computePose(me.model, me.phase);
 
     // 出局且抛飞动画已播完 → 观战：第三人称跟随当前领跑者，直到全场完赛
@@ -386,9 +386,9 @@ export class RaceScene {
 
     if (me.buckedOff && !spectating) {
       // 第二人称特写：相机架在马前侧方，同时框住回眸的战马与螺旋升天的骑手
-      const horseHead = myObj.rig.headLocal.clone().multiplyScalar(S);
-      const hx = me.x * S + horseHead.x;
-      const hy = (pose.bob + me.y) * S + horseHead.y;
+      const elephantHead = myObj.rig.headLocal.clone().multiplyScalar(S);
+      const hx = me.x * S + elephantHead.x;
+      const hy = (pose.bob + me.y) * S + elephantHead.y;
       const hz = me.z;
 
       const riderH = me.riderFlyY * RIDER_FLY_HEIGHT * S;        // 0 ~ 约 6.3
@@ -458,7 +458,7 @@ export class RaceScene {
   }
 
   dispose(): void {
-    this.horses.forEach(h => {
+    this.elephants.forEach(h => {
       h.rig.dispose();
       h.spriteTex.dispose();
       h.spriteCanvas.remove?.();

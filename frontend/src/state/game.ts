@@ -5,7 +5,7 @@ import { useSyncExternalStore } from "react";
 import { transport } from "../net/transport";
 import type { LinkState, NetMessage } from "../net/transport";
 import { Recognize } from "../game/recognize";
-import type { HorseModel, PartStrokes } from "../game/types";
+import type { ElephantModel, PartStrokes } from "../game/types";
 
 export type Phase = "lobby" | "draw" | "birth" | "waiting" | "race";
 /** 服务端广播的本轮状态：idle 大厅 / draw 绘制中 / race 已开赛 */
@@ -17,10 +17,10 @@ export interface PlayerInfo {
   done?: boolean;
 }
 
-export interface HorseEntry {
+export interface ElephantEntry {
   id: string;
   name: string;
-  model: HorseModel;
+  model: ElephantModel;
 }
 
 interface GameState {
@@ -36,9 +36,9 @@ interface GameState {
   links: LinkState;
   partLeft: number;          // 当前部位剩余秒
   currentPart: string;
-  myModel: HorseModel | null;    // 本地识别结果（诞生屏/赛跑用）
+  myModel: ElephantModel | null;    // 本地识别结果（诞生屏/赛跑用）
   myStrokes: PartStrokes | null; // 自己提交的画作
-  horses: HorseEntry[] | null;   // race 阶段的全部马
+  elephants: ElephantEntry[] | null;   // race 阶段的全部马
   error: string | null;
 }
 
@@ -48,7 +48,7 @@ let state: GameState = {
   phase: "lobby", myName: "", myId: null, room: null, host: null,
   players: [], round: "idle", roundSeq: 0, doneNames: [], links: { p2p: 0, relay: 0 },
   partLeft: PART_SECONDS, currentPart: "legs",
-  myModel: null, myStrokes: null, horses: null, error: null,
+  myModel: null, myStrokes: null, elephants: null, error: null,
 };
 
 // 房主侧汇总的画作（不进 React 状态：体积大且渲染不需要）
@@ -147,7 +147,7 @@ export function finishCurrentPart(): string | null {
 
 // ---------- 提交与房主协调 ----------
 // 画完三部位：本地识别 → 进入诞生仪式（本端先观赏自己的马）
-export function prepareBirth(strokes: PartStrokes, model: HorseModel): void {
+export function prepareBirth(strokes: PartStrokes, model: ElephantModel): void {
   clearInterval(partTimer!);
   setState({ myStrokes: strokes, myModel: model, phase: "birth" });
 }
@@ -175,22 +175,22 @@ export function maybeStartRace(): void {
 
 // 本轮参与者全部提交（或服务端超时）→ 房主用本地汇总的画作开赛
 function broadcastRace(): void {
-  const horses = roundParticipants().map(p => ({
+  const elephants = roundParticipants().map(p => ({
     id: p.id, name: p.name,
     strokes: strokeArchive.get(p.id) ?? null,
   }));
-  transport.send({ t: "race", horses });
+  transport.send({ t: "race", elephants });
   transport.notify({ t: "round_over" });           // 取消服务端超时兜底
-  enterRace({ t: "race", horses } as NetMessage);
+  enterRace({ t: "race", elephants } as NetMessage);
 }
 
 // ---------- 赛跑 ----------
 export function enterRace(msg: NetMessage): void {
-  const horses = (msg.horses as { id: string; name: string; strokes?: PartStrokes | null }[]) || [];
+  const elephants = (msg.elephants as { id: string; name: string; strokes?: PartStrokes | null }[]) || [];
   // 自己不在本局名单（中途加入者）：留在大厅等待下一局，不进入赛跑
-  if (!horses.some(h => h.id === transport.id)) return;
+  if (!elephants.some(h => h.id === transport.id)) return;
   clearInterval(partTimer!);
-  const entries: HorseEntry[] = horses.map(h => {
+  const entries: ElephantEntry[] = elephants.map(h => {
     if (h.id === transport.id && state.myModel) return { id: h.id, name: h.name, model: state.myModel };
     const hasStrokes = h.strokes && (h.strokes.legs?.length || h.strokes.head?.length || h.strokes.butt?.length);
     return {
@@ -198,12 +198,12 @@ export function enterRace(msg: NetMessage): void {
       model: hasStrokes ? Recognize.analyzeParts(h.strokes!) : Recognize.analyzeParts({ legs: [], head: [], butt: [] }),
     };
   });
-  setState({ phase: "race", horses: entries });
+  setState({ phase: "race", elephants: entries });
 }
 
 // ---------- dev-only：demo 模式直接灌入赛跑状态 ----------
-export function loadDemoRace(entries: HorseEntry[]): void {
-  setState({ phase: "race", horses: entries });
+export function loadDemoRace(entries: ElephantEntry[]): void {
+  setState({ phase: "race", elephants: entries });
 }
 
 // ---------- 网络消息注册（App 启动时调用一次） ----------
@@ -288,7 +288,7 @@ function markDone(id: string, name: string) {
 function resetRoundState(): void {
   doneIds.clear();
   strokeArchive.clear();
-  setState({ phase: "lobby", horses: null, doneNames: [], myStrokes: null, myModel: null });
+  setState({ phase: "lobby", elephants: null, doneNames: [], myStrokes: null, myModel: null });
 }
 
 export function playAgain(): void {
@@ -305,7 +305,7 @@ export function resetToLobby(error?: string): void {
   setState({
     phase: "lobby", room: null, host: null, players: [], round: "idle", roundSeq: 0, doneNames: [],
     links: { p2p: 0, relay: 0 },
-    myStrokes: null, myModel: null, horses: null, error: error ?? null,
+    myStrokes: null, myModel: null, elephants: null, error: error ?? null,
   });
 }
 

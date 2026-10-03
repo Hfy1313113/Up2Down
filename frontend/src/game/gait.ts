@@ -1,6 +1,6 @@
 /* gait.ts —— 马的固定奔跑步态算法（纯数学，不含绘制）。
    所有马共用同一函数：动画只决定姿态，位移由 metrics.ts 的速度公式积分决定。 */
-import type { HorseModel, LegModel, Pose, PoseLeg, Vec2 } from "./types";
+import type { ElephantModel, LegModel, Pose, PoseLeg, Vec2 } from "./types";
 
 // 旋转式 gallop 真实步态顺序：左后 → 右后 → 右前 → 左前（各占约 1/4 周期相位差）
 export const GAIT_OFFSETS = [0.0, 0.12, 0.50, 0.62];
@@ -9,7 +9,7 @@ const FOLD_AMP_HIND = 0.85;         // 后腿小腿折叠幅度
 const FOLD_AMP_FORE = 0.95;         // 前腿小腿折叠幅度
 
 // phase ∈ [0,1) 一个完整奔跑周期
-export function computePose(model: HorseModel, phase: number): Pose {
+export function computePose(model: ElephantModel, phase: number): Pose {
   const legs = model.legs.map((leg, i) => {
     const off = GAIT_OFFSETS[i % GAIT_OFFSETS.length];
     const p = (phase + off) % 1;

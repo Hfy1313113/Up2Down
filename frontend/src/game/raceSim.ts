@@ -2,7 +2,7 @@
 // 每匹马速度由 computeMetrics 决定，位移确定性积分；名次按冲线时间/距离排名。
 // 支持用户连点屏幕加速（带上限）、物理交互（拌腿、冲撞、美式截停、创飞）。
 import { computeMetrics } from "./metrics";
-import type { HorseModel } from "./types";
+import type { ElephantModel } from "./types";
 
 export const TRACK_LEN = 2600;            // 赛道长度（世界像素）
 export const COLORS = ["#e2604f", "#4d8de2", "#59b56b", "#e8a13c"];
@@ -19,7 +19,7 @@ export type InteractionType = "bump" | "trip" | "pit" | "launch";
 export interface Runner {
   id: string;
   name: string;
-  model: HorseModel;
+  model: ElephantModel;
   color: string;
   speed: number;            // 基础像素/秒
   effectiveSpeed: number;   // 结合加速与物理阻尼后的实际速度
@@ -60,7 +60,7 @@ export interface RaceState {
   runners: Runner[];
 }
 
-export function createRace(entries: { id: string; name: string; model: HorseModel }[]): RaceState {
+export function createRace(entries: { id: string; name: string; model: ElephantModel }[]): RaceState {
   const count = entries.length;
   return {
     time: 0,

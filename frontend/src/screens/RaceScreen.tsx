@@ -123,8 +123,8 @@ export function RaceScreen({ demo = false }: { demo?: boolean }) {
   hostRef.current = iAmHost;
   const hostIdRef = useRef(g.host);
   hostIdRef.current = g.host;
-  const myIndex = Math.max(0, g.horses?.findIndex(h => h.id === g.myId) ?? 0);
-  const myRunnerId = (g.horses && g.horses[myIndex]?.id) || (g.horses && g.horses[0]?.id) || "default";
+  const myIndex = Math.max(0, g.elephants?.findIndex(h => h.id === g.myId) ?? 0);
+  const myRunnerId = (g.elephants && g.elephants[myIndex]?.id) || (g.elephants && g.elephants[0]?.id) || "default";
 
   // 结算只展示一次：房主用本地名次并广播；非房主优先使用房主广播的权威名次
   const showResult = useCallback((rank: RankEntry[]) => {
@@ -163,7 +163,7 @@ export function RaceScreen({ demo = false }: { demo?: boolean }) {
     if (me) {
       setBoostRatio((me.boost - 1.0) / (MAX_BOOST - 1.0));
       transport.send({
-        t: "horse_boost",
+        t: "elephant_boost",
         id: myRunnerId,
         boost: me.boost,
         whip: me.whipIntensity,
@@ -185,14 +185,14 @@ export function RaceScreen({ demo = false }: { demo?: boolean }) {
     const unsub = transport.on((msg) => {
       // `_from` 由传输层按到达通道标注：加速/出局只接受本人发出，结算只接受房主发出
       const self = msg._from == null || msg._from === msg.id;
-      if (msg.t === "horse_boost" && raceRef.current && self) {
+      if (msg.t === "elephant_boost" && raceRef.current && self) {
         raceRef.current = setRunnerBoost(
           raceRef.current,
           msg.id as string,
           msg.boost as number,
           msg.whip as number
         );
-      } else if (msg.t === "horse_bucked_off" && raceRef.current && self) {
+      } else if (msg.t === "elephant_bucked_off" && raceRef.current && self) {
         raceRef.current = setRunnerBuckedOff(raceRef.current, msg.id as string);
       } else if (msg.t === "race_result" && Array.isArray(msg.rank)) {
         if (msg._from != null && msg._from !== hostIdRef.current) return;
@@ -205,7 +205,7 @@ export function RaceScreen({ demo = false }: { demo?: boolean }) {
 
   useEffect(() => {
     const canvas = canvasRef.current!;
-    const list = (g.horses ?? []).map((h, i) => ({
+    const list = (g.elephants ?? []).map((h, i) => ({
       id: h.id,
       name: h.name,
       model: h.model,
@@ -257,7 +257,7 @@ export function RaceScreen({ demo = false }: { demo?: boolean }) {
             setBuckedOff(true);
             playBuckedOffSound();
             transport.send({
-              t: "horse_bucked_off",
+              t: "elephant_bucked_off",
               id: myRunnerId,
             });
           }

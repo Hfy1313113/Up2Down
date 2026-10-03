@@ -1,7 +1,7 @@
 /* recognize.ts —— 马形识别：从手绘笔画中定位躯干与四条腿，
    并把每条腿转化为「髋关节 + 膝关节」双关节连杆模型。
    纯函数实现，无 DOM 依赖。 */
-import type { HorseModel, PartStrokes, RawStroke, Stroke, Vec2 } from "./types";
+import type { ElephantModel, PartStrokes, RawStroke, Stroke, Vec2 } from "./types";
 
 // ---------- 基础几何 ----------
 function strokeBBox(pts: Vec2[]) {
@@ -104,7 +104,7 @@ function pcaAxis(pts: Vec2[]) {
 // ---------- 主入口 ----------
 // rawStrokes: [{points: [[x,y],...]}, ...]，画布逻辑坐标（y 向下）
 // 返回标准化的马模型（本地坐标：x 向右=马头方向，y 向下，脚底 y=0，躯干中心在 y=-bodyH）
-function analyze(rawStrokes: RawStroke[]): HorseModel {
+function analyze(rawStrokes: RawStroke[]): ElephantModel {
   let strokes: Stroke[] = rawStrokes
     .map(s => ({ points: (s.points || []).filter(p => isFinite(p[0]) && isFinite(p[1])) as Vec2[] }))
     .filter(s => s.points.length >= 3 && arcLength(s.points) > 6);
@@ -275,7 +275,7 @@ function analyze(rawStrokes: RawStroke[]): HorseModel {
   const scale = 120 / Math.max(torso.len, 1);
   const toLocal = (p: Vec2): Vec2 => [(p[0] - torso.cx) * scale, (feetY - p[1]) * scale];
 
-  const model: HorseModel = {
+  const model: ElephantModel = {
     torso: {
       cx: 0,
       cy: (feetY - torso.cy) * scale,
@@ -318,7 +318,7 @@ function analyze(rawStrokes: RawStroke[]): HorseModel {
   return model;
 }
 
-function fallbackModel(): HorseModel {
+function fallbackModel(): ElephantModel {
   const legs = [];
   for (let i = 0; i < 4; i++) {
     const x = -45 + i * 30;
@@ -478,7 +478,7 @@ function analyzeButt(strokes: Stroke[], hips: Vec2[], torsoLen: number): ButtDet
   return { rumpX, tailCurve };
 }
 
-function analyzeParts(parts: PartStrokes): HorseModel {
+function analyzeParts(parts: PartStrokes): ElephantModel {
   parts = parts || {};
   const legStrokes: Stroke[] = (parts.legs || [])
     .map(s => ({ points: (s.points || []).filter(p => isFinite(p[0]) && isFinite(p[1])) as Vec2[] }))
@@ -634,12 +634,12 @@ function curveSwing(curve: Vec2[]): number {
   return Math.max(0, Math.min(1, (arc / chord - 1) / 1.2));
 }
 
-function normalize(raw: NormalizeRaw): HorseModel {
+function normalize(raw: NormalizeRaw): ElephantModel {
   const scale = 120 / Math.max(raw.torsoLen, 1);
   const toLocal = (p: Vec2): Vec2 => [(p[0] - raw.cx) * scale, (raw.feetY - p[1]) * scale];
   const t = Math.max(34, Math.min(56, 120 * 0.40));
   const headSize = Math.max(raw.headSize * scale, t * 0.62);
-  const model: HorseModel = {
+  const model: ElephantModel = {
     torso: {
       cx: 0, cy: (raw.feetY - raw.torsoCy) * scale, angle: 0, len: 120, thick: t,
     },

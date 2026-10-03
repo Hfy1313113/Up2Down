@@ -38,15 +38,15 @@ await sleep(200);
 ok(last(a, "player_done")?.name === "乙", "player_done 到达房主");
 
 // 房主 race：画作由房主端本地汇总，Worker 不持有 strokes，只原样转发
-a.ws.send(JSON.stringify({ t: "race", horses: [
+a.ws.send(JSON.stringify({ t: "race", elephants: [
   { id: a.id, name: "房主甲", strokes: strokesA },
   { id: b.id, name: "乙", strokes: strokesB },
 ] }));
 await sleep(300);
 const raceB = last(b, "race");
 ok(raceB, "race 到达乙");
-ok(raceB?.horses?.find(h => h.id === a.id)?.strokes?.legs?.length === 1, "画作由房主端携带（甲）");
-ok(raceB?.horses?.find(h => h.id === b.id)?.strokes?.head?.length === 1, "画作由房主端携带（乙）");
+ok(raceB?.elephants?.find(h => h.id === a.id)?.strokes?.legs?.length === 1, "画作由房主端携带（甲）");
+ok(raceB?.elephants?.find(h => h.id === b.id)?.strokes?.head?.length === 1, "画作由房主端携带（乙）");
 ok(!("strokes" in (last(b, "player_done") ?? {})), "player_done 不含画作载荷（控制面保持轻量）");
 
 // 再来一局

@@ -1,8 +1,8 @@
 // birthScene.ts —— three.js 检阅舞台：落地冲击、双足踉跄物理反馈、恢复平稳、全自由 360° 球面轨道拖拽观察与滚轮缩放。
 import * as THREE from "three";
 import { computePose } from "../game/gait";
-import type { HorseModel, Pose } from "../game/types";
-import { buildHorse, WORLD_SCALE, type HorseRig } from "./horseMesh";
+import type { ElephantModel, Pose } from "../game/types";
+import { buildElephant, WORLD_SCALE, type ElephantRig } from "./elephantMesh";
 
 const CAM_TARGET_Y = 1.5;
 const CAM_RADIUS = 6.2;
@@ -16,8 +16,8 @@ export class BirthScene {
   private renderer: THREE.WebGLRenderer;
   private scene: THREE.Scene;
   private camera: THREE.PerspectiveCamera;
-  private rig: HorseRig;
-  private model: HorseModel;
+  private rig: ElephantRig;
+  private model: ElephantModel;
   private events?: BirthSceneEvents;
   private disposables: { dispose(): void }[] = [];
   private startTime = performance.now();
@@ -35,7 +35,7 @@ export class BirthScene {
 
   constructor(
     canvas: HTMLCanvasElement,
-    model: HorseModel,
+    model: ElephantModel,
     color: string,
     events?: BirthSceneEvents,
   ) {
@@ -67,7 +67,7 @@ export class BirthScene {
     ring.position.y = 0.02;
     this.scene.add(ring);
 
-    this.rig = buildHorse(model, color);
+    this.rig = buildElephant(model, color);
     const baseScale = WORLD_SCALE * 2.2;
     this.rig.group.scale.setScalar(baseScale);
     this.rig.setPose(computePose(model, 0.18));

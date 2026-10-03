@@ -4,12 +4,12 @@
      步频 ∝ 1/√腿长（现实规律：腿越短倒腾越快）
      效率 ∝ 大腿:小腿 接近 1.05:1 时最高，偏离则惩罚 */
 import { THIGH_AMP } from "./gait";
-import type { HorseModel, Metrics } from "./types";
+import type { ElephantModel, Metrics } from "./types";
 
 const SPEED_K = 0.62;  // 全局速度系数
 
 // 由识别出的马模型计算速度与步频（确定性：所有客户端结果一致）
-export function computeMetrics(model: HorseModel): Metrics {
+export function computeMetrics(model: ElephantModel): Metrics {
   let vSum = 0, cSum = 0;
   for (const leg of model.legs) {
     const L1 = Math.max(leg.L1, 4), L2 = Math.max(leg.L2, 4);

@@ -6,7 +6,7 @@ import { synthParts } from "../game/synth";
 import { BirthScreen } from "../screens/BirthScreen";
 import { RaceScreen } from "../screens/RaceScreen";
 import { DrawScreen } from "../screens/DrawScreen";
-import type { HorseEntry } from "../state/game";
+import type { ElephantEntry } from "../state/game";
 
 export function isDemoMode(): string | null {
   if (!import.meta.env.DEV) return null;
@@ -15,7 +15,7 @@ export function isDemoMode(): string | null {
 }
 
 export function DemoApp({ mode }: { mode: string }) {
-  const horses: HorseEntry[] = useMemo(() => {
+  const elephants: ElephantEntry[] = useMemo(() => {
     const variants = [
       { name: "均衡腿", legLen: 150, ratio: 1.05 },
       { name: "大长腿", legLen: 195, ratio: 1.05 },
@@ -33,26 +33,26 @@ export function DemoApp({ mode }: { mode: string }) {
     return <DrawScreen />;
   }
   if (mode === "birth") {
-    return <BirthScreenDemo horses={horses} />;
+    return <BirthScreenDemo elephants={elephants} />;
   }
-  return <RaceDemo horses={horses} />;
+  return <RaceDemo elephants={elephants} />;
 }
 
 import { useEffect } from "react";
 import { loadDemoRace, prepareBirth, useGame } from "../state/game";
 
-function BirthScreenDemo({ horses }: { horses: HorseEntry[] }) {
+function BirthScreenDemo({ elephants }: { elephants: ElephantEntry[] }) {
   const g = useGame();
   useEffect(() => {
     // 借 state 层的暂存通道灌入 model（不发网络消息）
     const strokes = synthParts();
-    prepareBirth(strokes, horses[0].model);
-  }, [horses]);
+    prepareBirth(strokes, elephants[0].model);
+  }, [elephants]);
   return g.myModel ? <BirthScreen demo /> : <div className="screen">加载中…</div>;
 }
 
-function RaceDemo({ horses }: { horses: HorseEntry[] }) {
+function RaceDemo({ elephants }: { elephants: ElephantEntry[] }) {
   const g = useGame();
-  useEffect(() => { loadDemoRace(horses); }, [horses]);
-  return g.horses?.length ? <RaceScreen demo /> : <div className="screen">加载中…</div>;
+  useEffect(() => { loadDemoRace(elephants); }, [elephants]);
+  return g.elephants?.length ? <RaceScreen demo /> : <div className="screen">加载中…</div>;
 }
