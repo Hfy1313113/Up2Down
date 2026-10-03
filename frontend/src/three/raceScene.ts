@@ -443,8 +443,15 @@ export class RaceScene {
       this.cameraX += (myTargetX - this.cameraX) * Math.min(1, dt * 5 + 0.1);
       this.cameraZ += (myTargetZ - this.cameraZ) * Math.min(1, dt * 4 + 0.08);
 
-      this.camera.position.set(this.cameraX - 10, 7.5, this.cameraZ + 14);
-      this.camera.lookAt(this.cameraX + 5, 1.2, this.cameraZ * 0.4);
+      if (this.camera.aspect < 1) {
+        // 竖屏（手机）：横向视野窄、底部有 HUD，相机抬高并退到斜后方，
+        // 让自己的马落在画面中部偏上而不是被底部面板遮住
+        this.camera.position.set(this.cameraX - 11, 11, this.cameraZ + 9);
+        this.camera.lookAt(this.cameraX + 4, 0.6, this.cameraZ);
+      } else {
+        this.camera.position.set(this.cameraX - 10, 7.5, this.cameraZ + 14);
+        this.camera.lookAt(this.cameraX + 5, 1.2, this.cameraZ * 0.4);
+      }
     }
 
     this.renderer.render(this.scene, this.camera);
