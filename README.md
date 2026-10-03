@@ -260,8 +260,9 @@ npm run dev                # 运行在 http://localhost:5173
 
 本项目设计为 **一个 Cloudflare Worker 项目搞定前后端全部**，有两条部署路径：
 
-**路径 A · Git 自动部署（推荐）**：Worker `up2down` 通过 Cloudflare Workers Builds 连接本仓库，`main` 分支每次 push 自动构建并上线；其他分支的 push 只上传预览版本不切流量。
-Cloudflare 侧「Settings → Build」需填写：
+**路径 A · Git 自动部署（现行，2026-10-03 起已接入）**：Worker `up2down` 已通过 Cloudflare Workers Builds 连接本仓库 `Hfy1313113/Up2Down`。
+**push 到 `main` 即触发生产部署**（安装 → 构建 `frontend/dist` → `wrangler deploy`），其他分支的 push 只上传预览版本不切流量。构建状态与日志在 Cloudflare Dashboard → Workers & Pages → `up2down` → Deployments / Builds 查看。
+Cloudflare 侧「Settings → Build」当前配置：
 
 | 配置项 | 值 |
 | :--- | :--- |
@@ -271,7 +272,7 @@ Cloudflare 侧「Settings → Build」需填写：
 | Deploy command | `npx wrangler deploy` |
 | 环境变量（可选） | `NODE_VERSION = 24` |
 
-**路径 B · 本机手动部署**：
+**路径 B · 本机手动部署（应急或本地验证用）**：
 
 ```bash
 cd signaling
@@ -279,7 +280,8 @@ npx wrangler login
 npm run deploy      # 自动先构建 frontend/dist（Worker assets 指向它），再 wrangler deploy
 ```
 
-部署完成后，访问绑定的生产域名（默认 `https://up2down.plutokeating.beer`）即可开局。若在 `frontend/public/styles/<id>/music/` 放了音频文件，它会随 `dist` 一起部署。注意：仅 `git push` 到 GitHub 不会更新线上站点，除非已按路径 A 接好 Git 自动部署。
+部署完成后，访问绑定的生产域名（默认 `https://up2down.plutokeating.beer`）即可开局。若在 `frontend/public/styles/<id>/music/` 放了音频文件，它会随 `dist` 一起部署。
+因为 `main` 已接自动部署，**合并或推送到 `main` 等同于发布**；未经验证的改动请走特性分支。
 
 ---
 

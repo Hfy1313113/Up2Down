@@ -13,6 +13,8 @@
 
 - **同一个 Worker 也是静态托管方**：`[assets]` 指向 `frontend/dist`，`/`、`/play`、`/about`、`/privacy`、`/terms`
   及其前端路由由它返回（SPA 回落），因此整站只有一个域名、一份部署，前端与控制面天然同源。
+- **部署流水线**：Worker `up2down` 由 Cloudflare Workers Builds 连接 GitHub `Hfy1313113/Up2Down`，`main` 每次 push 自动
+  在 `signaling/` 下安装依赖、执行 `npm run build:ci` 构建前端，再 `npx wrangler deploy`；仓库内没有独立的 CI 工作流。
 
 - **数据面**：`RTCDataChannel`（每对玩家一条，`ordered: true`）。网状拓扑，4 人 = 每端 3 条连接。
   画作提交、风格选择、开赛载荷等全部点对点传输，**不产生任何 Cloudflare 流量**。
