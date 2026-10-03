@@ -5,6 +5,7 @@ import { BirthScene } from "../three/birthScene";
 import { useGame, sendDone } from "../state/game";
 import { COLORS } from "../game/raceSim";
 import type { HorseModel } from "../game/types";
+import { getAudioCtx } from "./audio";
 
 const OBSERVE_SECONDS = 15;
 
@@ -58,9 +59,8 @@ function getAppraisal(model: HorseModel | null) {
 // ---------- 物理触地撞击音效 ----------
 function playImpact() {
   try {
-    const Ctx = window.AudioContext ?? (window as any).webkitAudioContext;
-    const audioCtx = new Ctx();
-    if (audioCtx.state === "suspended") void audioCtx.resume();
+    const audioCtx = getAudioCtx();
+    if (!audioCtx) return;
     const t0 = audioCtx.currentTime;
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
@@ -78,9 +78,8 @@ function playImpact() {
 // ---------- 胜利号角音效（WebAudio 合成） ----------
 function fanfare() {
   try {
-    const Ctx = window.AudioContext ?? (window as any).webkitAudioContext;
-    const audioCtx = new Ctx();
-    if (audioCtx.state === "suspended") void audioCtx.resume();
+    const audioCtx = getAudioCtx();
+    if (!audioCtx) return;
     const t0 = audioCtx.currentTime;
     const notes = [523.25, 659.25, 783.99, 1046.5, 783.99, 1046.5, 1318.5];
     notes.forEach((f, i) => {

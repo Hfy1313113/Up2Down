@@ -18,6 +18,7 @@ import {
 import { RaceScene, type ViewMode } from "../three/raceScene";
 import { useGame, playAgain } from "../state/game";
 import { transport } from "../net/transport";
+import { getAudioCtx } from "./audio";
 
 interface WhipPop {
   id: number;
@@ -28,9 +29,8 @@ interface WhipPop {
 
 function playWhipSound() {
   try {
-    const Ctx = window.AudioContext ?? (window as any).webkitAudioContext;
-    const audioCtx = new Ctx();
-    if (audioCtx.state === "suspended") void audioCtx.resume();
+    const audioCtx = getAudioCtx();
+    if (!audioCtx) return;
     const t0 = audioCtx.currentTime;
     const noise = audioCtx.createBufferSource();
     const buf = audioCtx.createBuffer(1, 1200, 22050);
@@ -47,9 +47,8 @@ function playWhipSound() {
 
 function playBlastSound() {
   try {
-    const Ctx = window.AudioContext ?? (window as any).webkitAudioContext;
-    const audioCtx = new Ctx();
-    if (audioCtx.state === "suspended") void audioCtx.resume();
+    const audioCtx = getAudioCtx();
+    if (!audioCtx) return;
     const t0 = audioCtx.currentTime;
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
@@ -66,9 +65,8 @@ function playBlastSound() {
 
 function playBuckedOffSound() {
   try {
-    const Ctx = window.AudioContext ?? (window as any).webkitAudioContext;
-    const audioCtx = new Ctx();
-    if (audioCtx.state === "suspended") void audioCtx.resume();
+    const audioCtx = getAudioCtx();
+    if (!audioCtx) return;
     const t0 = audioCtx.currentTime;
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
