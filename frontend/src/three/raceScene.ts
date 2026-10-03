@@ -402,10 +402,14 @@ export class RaceScene {
       const camY = hy + 1.0 + riderH * 0.45;
       const camZ = hz + dist * 0.8;
 
-      // 注视点：马身中心与骑手的中点
+      // 注视点：马身中心与骑手之间、略偏向骑手（骑手越飞越高，保持其在画面中上部）
       const bodyX = me.x * S, bodyY = (pose.bob + me.y) * S + 1.0;
       this.camera.position.set(camX, camY, camZ);
-      this.camera.lookAt((bodyX + riderX) / 2, (bodyY + riderY) / 2, (hz + riderZ) / 2);
+      this.camera.lookAt(
+        bodyX * 0.4 + riderX * 0.6,
+        bodyY * 0.4 + riderY * 0.6,
+        hz * 0.4 + riderZ * 0.6,
+      );
       // 镜头微倾斜带出滑稽特写戏剧感
       this.camera.up.set(Math.sin(me.riderFlyRot * 2) * 0.12, 1, 0);
     } else if (view === "first" && !spectating) {
