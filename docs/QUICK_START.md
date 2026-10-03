@@ -50,7 +50,7 @@ npm run dev
 
 ```bash
 cd frontend
-npm test                            # vitest：识别（含象鼻）/ 速度公式 / 步态 / 赛跑积分与碰撞 / 风格包校验 / 程序化音乐编译（37 例）
+npm test                            # vitest：识别（含象鼻）/ 速度公式 / 步态 / 赛跑积分与碰撞 / 风格包校验 / 程序化音乐编译（39 例）
 npx tsc --noEmit -p tsconfig.app.json   # 类型检查
 npm run lint                        # oxlint
 npm run build                       # 生产构建

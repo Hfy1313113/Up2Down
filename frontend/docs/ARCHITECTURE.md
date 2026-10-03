@@ -48,13 +48,14 @@ lobby ──房主 startGame()──► draw ──三部位画完 prepareBirth(
 
 ## 风格包层（`src/style/`）
 
-- **契约**（`types.ts`）：`StylePack = { id, name, tagline, swatch, playerColors[4], elephant, rider, environment, birth, ui, music, sfx }`。
-  材质槽位、附件名、装饰物种类、音效事件与合成预设都是 `as const` 常量，校验器与机制层共用。
+- **契约**（`types.ts`）：`StylePack = { id, name, tagline, swatch, playerColors[4], elephant, elephantAccessories?, rider, environment, birth, ui, music, sfx }`。
+  材质槽位、大象附件名、驭象师附件名、装饰物种类、音效事件与合成预设都是 `as const` 常量，校验器与机制层共用；`rider.face` 为可选的三档表情材质。
 - **注册表**（`registry.ts`）：`import.meta.glob("./packs/*/index.ts", { eager: true })`，每个包过 `validatePack()`；开发态不合法直接抛错，生产态跳过并 console.error。
   `DEFAULT_STYLE_ID` 优先 `bollywood`；`listPacks()` 默认包排最前。
 - **材质解析**（`materials.ts`）：`MaterialResolver(playerColors)`，`get(spec, playerIndex)` 按「玩家色 + JSON(spec)」缓存；
   `"$player"` 在颜色与程序化配方字符串里统一替换；程序化纹理用确定性伪随机（`seed`）画到 256px Canvas（可指定 128/512），
   `RepeatWrapping` + `repeat`；图片纹理加载失败时 three 保持空贴图，视觉上回落为基础色。一个场景一个解析器，`dispose()` 统一释放。
+  配方含纹样类（条纹 / 斑点 / 噪声 / 皱纹 / 棋盘 / 网格 / 佩斯利 / 曼陀罗 / 流苏）与结构类（`road` 沥青车道线、`face` 卡通脸、`label` 文字标牌）。
 - **主题**（`theme.ts`）：把 `ui` 十个字段写入 `:root` 的 `--ui-*` 变量并设置 `data-style`；`loadPreferredStyle / savePreferredStyle` 走 localStorage。
 - **预载**（`preload.ts`）：收集所有 `image` 纹理 URL 创建 `Image`，并对三条曲目调用 `preloadTrack()`。
 
@@ -69,6 +70,7 @@ lobby ──房主 startGame()──► draw ──三部位画完 prepareBirth(
   程序化曲目 0.8s 淡入并无缝循环；文件曲目不用 `loop`，而是逐遍播放：第一遍直接起播，每遍结尾 `fadeSec`（默认 2.5s）渐出，
   比赛未结束则再起一遍并从第二遍起开头渐入；`stop(fade)` 淡出，`duck(level)` 压低（出局 0.45、结算 0.35）。
 - **音效**（`sfx.ts`）：`setSfxPack(pack)` 后 `playSfx(id)` 按风格包事件表选预设或文件，未配置则用默认预设；`playPreset(id)` 直接播放预设（如连点达到 1.4 倍时的象鸣 `trumpetTrunk`）。
+  预设库除鞭响 / 鼓 / 号角 / 滑哨 / 象鸣 / 滴答 / 起跑 / 点击外，还有汽车主题的 `hornHonk`（双音喇叭）、`engineRev`（地板油起步 + 打滑）、`tireScreech`（轮胎尖啸）、`crash`（追尾闷响 + 金属碎响）。
 - **阶段联动**：`App.tsx` 在 `/play` 的非赛跑阶段播放 `menu`（具象化阶段优先 `birth`），离开 `/play` 停止；`RaceScreen` 在倒数「3」出现时播放 `race`，倒数 / 起跑 / 挥鞭 / 出局 / 结算各触发对应音效。
 
 ## 渲染层（`src/three/` 与 UI 呈现）
@@ -89,12 +91,15 @@ lobby ──房主 startGame()──► draw ──三部位画完 prepareBirth(
   颈/头为「头组」结构——头组原点设在识别头心、x 轴沿识别朝向旋转，额头隆起、吻部、双眼、象牙（两根前伸下弯圆锥）、
   **象鼻**（有识别曲线则按曲线分节建圆柱链，否则程序化下垂回卷；随步伐轻摆，连点越猛扬得越高，甩飞时高高扬起）、
   **扇耳**（识别到耳尖则由耳根指向耳尖的薄椭圆，否则默认一对；随步伐扇动）；脖子由识别脖子根→头端驱动；
-  尾巴优先按识别曲线生成 CatmullRom 细管尾（尾尖带穗），无曲线时退回默认尾柱；象背固定象毯（带垂幔），驭象师骑在象毯上，
-  **附件库**按 `pack.rider.accessories` 挂载（头巾含宝石、头盔、面罩、帽、羽饰、小胡子、胡须、眉心点、绶带）；
+  尾巴优先按识别曲线生成 CatmullRom 细管尾（尾尖带穗），无曲线时退回默认尾柱；
+  **大象附件库**按 `pack.elephantAccessories` 挂载车件：`headlights`（头球前方半嵌的大灯 + 侧面转向灯）、`taillights`（躯干后半球尾灯）、`mirrors`（头两侧短杆圆后视镜）、`plate`（屁股正后方车牌，-x 面贴 `label` 文字材质）、`hubcaps`（每只象足套黑胎环 + 外侧轮毂盖）、`bumper`（吻下镀铬保险杠）；
+  象背固定象毯（带垂幔），驭象师骑在象毯上，头球为 24×16 段以承载脸贴图，默认后脑头发只覆盖 x≤0 的后半球；
+  **驭象师附件库**按 `pack.rider.accessories` 挂载（头巾含宝石、头盔、面罩、帽、羽饰、小胡子、胡须、眉心点、绶带、蓬松卷发、座椅靠背与头枕、方向盘）；
+  **表情档位**：`pack.rider.face` 给出 `calm / tense / furious` 三档材质时，`setPose` 按连点强度（>0.2 / >0.7）或甩飞状态切换头球材质；
   `setPose(pose, whipIntensity, dt, buckedOff, riderFlyY, riderFlyRot, riderFlyX)` 每帧写入步态正解、挥鞭抽打动作与过载坠象的人象分离、四肢乱蹬大风车抛飞姿态。
   `dispose()` 只释放几何，材质由解析器释放。
 - `environment.buildEnvironment(scene, pack, resolver, trackLenWorld, track)`：天空（纯色或 2×256 渐变 Canvas 纹理）、雾、半球光 + 平行光、地面、跑道、
-  InstancedMesh 栅栏、终点门与双色格横幅、礼花筒基座、云朵，再按 `props[]` 调 `props.buildProps()`；装饰物按 `seed` 确定性分布，`torana` / `bunting` 横跨赛道居中，其余按侧放置，神庙门洞朝向跑道。
+  InstancedMesh 栅栏、终点门与双色格横幅、礼花筒基座、云朵，再按 `props[]` 调 `props.buildProps()`；装饰物按 `seed` 确定性分布，`torana` / `bunting` 横跨赛道居中，其余按侧放置，神庙门洞与高速路灯灯臂朝向跑道，方块车 / 厢货车头朝 +x（与赛跑方向一致），限速牌两面都贴标牌纹理。
 - `raceScene.RaceScene(canvas, entries, myIndex, pack)`：相机跟随自身大象（第三人称）、第一人称自由转头环视，坠象时自动切入的**第二人称大象回望特写相机**（同时框住回眸的大象与升天的驭象师），以及出局后跟随领跑者（`leaderOf`）的观战相机。
   礼花配色、浮动文案描边色取自风格包。渲染大象真实横纵位移 `(x, y, z)`、三维旋转与浮动碰撞文案。
 - **过载甩飞机制（`raceSim.ts` + `RaceScreen.tsx`）**：

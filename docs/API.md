@@ -45,7 +45,7 @@ Worker 不解析也不保存任何数据面消息（包括 `style`），只在�
 
 前端的 `_close` / `_rejoined` 为传输层内部事件（控制面断开、重连后拿到新 id），不属于对端可发的协议。
 
-`style` 与 `race.style`、`draw_phase.style` 的取值为风格包 id（如 `bollywood`、`classic`）；接收端若不认识该 id 则忽略并沿用当前风格。
+`style` 与 `race.style`、`draw_phase.style` 的取值为风格包 id（如 `bollywood`、`road-rage`、`classic`）；接收端若不认识该 id 则忽略并沿用当前风格。
 
 **发送者校验**：传输层把每条数据面消息按其到达通道标注 `_from`（DataChannel 所属 peer 的 id，或 Worker
 在 `relay`/`relay_all` 上附加的 `from`），不信任消息体自带字段。上层据此只接受：房主发出的

@@ -5,7 +5,7 @@
 ```bash
 npm install
 npm run dev        # 开发服务器 http://localhost:5173（首页；游戏在 /play）
-npm test           # vitest 单测（37 例）
+npm test           # vitest 单测（39 例）
 npm run lint       # oxlint
 npm run build      # 生产构建 → dist/
 npm run preview    # 预览构建产物
