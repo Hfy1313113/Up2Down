@@ -23,9 +23,8 @@ src/
 │   ├── theme.ts       UI 配色写入 :root CSS 变量；本机风格偏好
 │   ├── preload.ts     预载风格包的图片贴图与音乐文件
 │   └── packs/
-│       ├── bollywood/ 「宝莱坞狂欢」（默认）
-│       ├── road-rage/ 「腋毛攻击」（驾考宝典路怒动画 × 黑街 DJ 空耳：夜色高速与方块车）
-│       └── classic/   「草稿纸经典」
+│       ├── road-rage/ 「腋毛攻击」（默认：驾考宝典路怒动画 × 黑街 DJ 空耳，夜色高速与方块车）
+│       └── bollywood/ 「宝莱坞狂欢」
 ├── audio/          # 音频层：机制，不含具体曲目
 │   ├── context.ts     全局唯一 AudioContext + BGM / SFX 两条 GainNode 总线；unlockAudio()
 │   ├── settings.ts    静音 / 音乐音量 / 音效音量（localStorage）

@@ -5,14 +5,11 @@ import { specUsesPlayer, recipeKey } from "../src/style/materials";
 import bollywood from "../src/style/packs/bollywood/index";
 
 describe("风格包注册表与校验", () => {
-  it("自动发现至少三套风格包，且默认为宝莱坞", () => {
+  it("自动发现两套风格包：默认「腋毛攻击」排第一，宝莱坞第二，草稿纸经典已移除", () => {
     const ids = listPacks().map(p => p.id);
-    expect(ids.length).toBeGreaterThanOrEqual(3);
-    expect(ids).toContain("bollywood");
-    expect(ids).toContain("classic");
-    expect(ids).toContain("road-rage");
-    expect(DEFAULT_STYLE_ID).toBe("bollywood");
-    expect(listPacks()[0].id).toBe(DEFAULT_STYLE_ID);
+    expect(ids).toEqual(["road-rage", "bollywood"]);
+    expect(DEFAULT_STYLE_ID).toBe("road-rage");
+    expect(hasPack("classic")).toBe(false);
   });
 
   it("每套已注册风格包都通过结构校验", () => {
@@ -22,7 +19,7 @@ describe("风格包注册表与校验", () => {
   it("未知 id 回落到默认风格；hasPack 正确", () => {
     expect(getPack("nope").id).toBe(DEFAULT_STYLE_ID);
     expect(getPack(null).id).toBe(DEFAULT_STYLE_ID);
-    expect(hasPack("classic")).toBe(true);
+    expect(hasPack("bollywood")).toBe(true);
     expect(hasPack("nope")).toBe(false);
   });
 

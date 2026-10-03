@@ -43,7 +43,7 @@ npm run dev
 | frontend | `public/styles/<风格id>/music/race.mp3` | 无 | 可选的正赛音乐文件，随仓库一起提交与部署；缺失时回落到风格包内置的程序化乐谱 |
 | signaling | `DRAW_TIMEOUT_MS` | `200000` | 绘制阶段服务端兜底超时（改常量即可） |
 
-风格包本身不是配置项，而是代码：`frontend/src/style/packs/<id>/index.ts`，新增目录即自动注册；默认风格为 `bollywood`，
+风格包本身不是配置项，而是代码：`frontend/src/style/packs/<id>/index.ts`，新增目录即自动注册；默认风格为 `road-rage`（腋毛攻击），
 玩家本机的上次选择保存在 localStorage。
 
 ## 测试与验证

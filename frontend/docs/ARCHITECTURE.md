@@ -51,7 +51,7 @@ lobby ──房主 startGame()──► draw ──三部位画完 prepareBirth(
 - **契约**（`types.ts`）：`StylePack = { id, name, tagline, swatch, playerColors[4], elephant, elephantAccessories?, rider, environment, birth, ui, music, sfx }`。
   材质槽位、大象附件名、驭象师附件名、装饰物种类、音效事件与合成预设都是 `as const` 常量，校验器与机制层共用；`rider.face` 为可选的三档表情材质。
 - **注册表**（`registry.ts`）：`import.meta.glob("./packs/*/index.ts", { eager: true })`，每个包过 `validatePack()`；开发态不合法直接抛错，生产态跳过并 console.error。
-  `DEFAULT_STYLE_ID` 优先 `bollywood`；`listPacks()` 默认包排最前。
+  `DEFAULT_STYLE_ID` 优先 `road-rage`（其次 `bollywood`）；`listPacks()` 默认包排最前，其余按 id 排序。本机保存的偏好若指向已移除的包（如旧的 `classic`），`getPack` 回落到默认。
 - **材质解析**（`materials.ts`）：`MaterialResolver(playerColors)`，`get(spec, playerIndex)` 按「玩家色 + JSON(spec)」缓存；
   `"$player"` 在颜色与程序化配方字符串里统一替换；程序化纹理用确定性伪随机（`seed`）画到 256px Canvas（可指定 128/512），
   `RepeatWrapping` + `repeat`；图片纹理加载失败时 three 保持空贴图，视觉上回落为基础色。一个场景一个解析器，`dispose()` 统一释放。

@@ -19,8 +19,8 @@ for (const [path, mod] of Object.entries(modules)) {
   packs.set(pack.id, pack);
 }
 
-/** 默认风格：优先宝莱坞，否则取注册表第一项 */
-export const DEFAULT_STYLE_ID = packs.has("bollywood") ? "bollywood" : (packs.keys().next().value as string);
+/** 默认风格：优先「腋毛攻击」，其次宝莱坞，否则取注册表第一项 */
+export const DEFAULT_STYLE_ID = packs.has("road-rage") ? "road-rage" : packs.has("bollywood") ? "bollywood" : (packs.keys().next().value as string);
 
 export function listPacks(): StylePack[] {
   // 默认风格排最前，其余按 id 排序，保证选择器顺序稳定
