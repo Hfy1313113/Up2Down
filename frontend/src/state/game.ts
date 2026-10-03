@@ -112,13 +112,18 @@ function startPartTimer(): void {
   }, 200);
 }
 
-// 部位计时结束/手动完成：由 DrawScreen 调用，返回下一部位名或 null
+// 部位计时结束/手动完成：由 DrawScreen 调用，返回下一部位名或 null。
+// 每个部位都重新起一轮 50s 计时：无论上一部位是手动完成还是超时结束，
+// 下一部位都从完整的 PART_SECONDS 开始倒数。
 export function finishCurrentPart(): string | null {
   const order = ["legs", "head", "butt"];
   const idx = order.indexOf(state.currentPart);
   const next = order[idx + 1] ?? null;
   if (next) {
     setState({ currentPart: next, partLeft: PART_SECONDS });
+    startPartTimer();
+  } else {
+    clearInterval(partTimer!);
   }
   return next;
 }
