@@ -17,8 +17,9 @@ Worker **不保存画作**：`done` 只标记提交状态，游戏载荷走 P2P 
 ```
 src/index.ts        Worker 入口 + Durable Object「Room」全部逻辑（单文件）
 wrangler.toml       Worker 名称、静态产物目录、Durable Object 绑定与迁移
+tsconfig.json       类型检查配置（npm run check = tsc --noEmit；wrangler 打包本身不做类型检查）
 scripts/            协议用例（需先起 wrangler dev --port 8787）
-  verify.mjs         成员、房主移交、定向转发、done 状态
+  verify.mjs         成员、房主移交、定向转发、done 状态、满员拒绝、本轮状态 round/roundSeq
   signal-verify.mjs  信令 offer/answer/candidate 转发与错误分支
   e2e-verify.mjs     完整流程：draw_phase → done → race → again，并校验游戏载荷不经服务端
   timeout-verify.mjs 超时兜底事件（含房主断线、round_over 取消）

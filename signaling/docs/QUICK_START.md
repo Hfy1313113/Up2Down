@@ -33,11 +33,10 @@ node scripts/timeout-verify.mjs  # 超时兜底事件（含房主断线、round_
 - 生产域名（唯一公开域名）：`https://up2down.plutokeating.beer`
 
 ```bash
-cd ../frontend && npm run build  # 必须先构建：dist 会被打包进 Worker
-cd ../signaling
 npx wrangler login
-npx wrangler deploy              # 部署到 up2down
-npx wrangler deploy --dry-run    # 只构建校验，不上传
+npm run deploy                   # 先构建 ../frontend/dist，再 wrangler deploy 到 up2down
+npx wrangler deploy --dry-run    # 只校验 Worker 打包，不上传（不会重新构建前端）
+npm run check                    # tsc --noEmit 类型检查
 ```
 
 部署后 https://up2down.plutokeating.beer 即完整站点：`/` 前端、`/rooms/<房间号>` 信令，

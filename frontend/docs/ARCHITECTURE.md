@@ -14,7 +14,14 @@ lobby ──房主 startGame()──► draw ──三部位画完 prepareBirth(
 - 房主（`host === transport.id`）负责：广播 `draw_phase`、判定全员提交、汇总画作并广播 `race`，以及完赛时广播权威名次 `race_result`。
 - 绘制阶段每个部位独立计时：`finishCurrentPart()` 切换部位时会重新调用 `startPartTimer()`，无论上一部位是手动完成还是超时结束，下一部位都从完整的 50s 开始。
 - `join()` 失败（如房间已满）：服务端回 `error` 并关闭连接，`transport.connect` 立即 reject，错误写入 `g.error` 在大厅展示。
-- `room_state` 变化时若处于绘制/等待阶段，房主会重新判定是否可以开赛（用于迟到提交与超时）。
+- `room_state` 变化时若处于绘制/等待阶段，房主会重新判定是否可以开赛（用于迟到提交与超时）；
+  合并时本地已收到 `done` 的成员保持 `done=true`，不被服务端的 `false` 覆盖。
+- **本轮参与者**：`roundParticipants()` 按服务端的 `round` / `roundSeq` 过滤成员（pid 序号 ≤ `roundSeq`），
+  开赛判定、`race` 名单、等待屏进度都只看参与者；中途加入者在大厅看到「对局进行中」候场提示，
+  收到不含自己的 `race` 时留在大厅，`again` 后随下一局开始。
+- **消息来源校验**：`transport` 为每条数据面消息标注 `_from`（按到达通道，不信任消息体），
+  `draw_phase` / `race` / `again` 只接受房主发出，`done` 只接受本人发出；`RaceScreen` 同理校验
+  `horse_boost` / `horse_bucked_off`（本人）与 `race_result`（房主）。
 - 服务端 `race_timeout` 到达时，当前房主用本地 `strokeArchive` 组装 `race` 广播；
   非房主只等待 `race`。
 
@@ -25,7 +32,8 @@ lobby ──房主 startGame()──► draw ──三部位画完 prepareBirth(
 - `send(msg)`：广播游戏消息。已建 DataChannel 的 peer 走 P2P；未建的走控制面 `relay` 定向转发；
   还不知道有哪些 peer 时走 `relay_all`。
 - `notify(msg)`：只发控制面（服务端计时通知等）。
-- 每条消息带 `_id`，接收端维护最近 512 条 id 的去重窗口，杜绝双通道重复投递。
+- 每条消息带 `_id`，接收端维护最近 512 条 id 的去重窗口，杜绝双通道重复投递；
+  投递给上层前附加 `_from`（DataChannel 所属 peer id 或 Worker 附加的 `from`）供来源校验。
 - **建连**：`room_state` 驱动。每对 peer 由 id 较小者发起 offer 与 DataChannel，
   天生无 glare；ICE 候选先缓存后补挂。
 - **降级**：连接失败（`failed` / `closed`）即标记该 peer 走兜底并定时重试；界面通过
@@ -35,7 +43,11 @@ lobby ──房主 startGame()──► draw ──三部位画完 prepareBirth(
 
 ## 渲染层（`src/three/` 与 UI 呈现）
 
-- **Tailwind CSS 页面框架**：全站屏幕采用 Tailwind CSS 进行响应式栅格与自适应弹性排版，针对手机（含小屏 iPhone SE）、平板与桌面端进行细粒度适配，确保任何视口比例下无元素遮挡、文本截断或组件堆叠。
+- **Tailwind CSS 页面框架**：全站屏幕采用 Tailwind CSS 工具类做响应式排版，适配手机、平板与桌面端。
+  **层叠规则**：Tailwind v4 的工具类位于 `@layer utilities`，任何未分层的元素/类选择器都会压过工具类（与权重无关）。
+  因此 `index.css` 只在 `@layer base` 里放 body/#root 等基础样式，在 `@layer components` 里放画板网格、动画类等，
+  **不写 `button {}` / `input {}` 这类元素级规则**，组件外观全部由 JSX 上的工具类决定。
+- **竖屏相机**：`RaceScene` 第三人称相机按 `camera.aspect < 1` 分支，竖屏时抬高并退到斜后方，使自己的马落在画面中部而不被底部 HUD 遮挡。
 - `horseMesh.buildHorse(model, color)`：把识别模型变成 `THREE.Group`。
   躯干为胶囊，四条腿是 `hipGroup → 大腿 → kneeGroup → 小腿 + 蹄` 的两级连杆；
   颈/头/耳/眼为「头组」结构——头组原点设在识别头心、x 轴沿识别朝向旋转，吻部/双眼/双耳

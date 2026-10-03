@@ -45,8 +45,9 @@ node scripts/e2e-p2p.mjs            # 开发形态：三客户端真实绘制 + 
 node scripts/e2e-p2p.mjs --prod     # 生产形态：只起 Worker（它自己托管 dist），同源联机
 
 cd ../signaling
+npm run check                       # Worker 类型检查（tsc --noEmit）
 npx wrangler dev --port 8787        # 另开一个终端
-node scripts/verify.mjs             # 成员/房主移交/定向转发
+node scripts/verify.mjs             # 成员/房主移交/定向转发/满员/本轮状态
 node scripts/signal-verify.mjs      # 信令 offer/answer/candidate 转发
 node scripts/e2e-verify.mjs         # 控制面完整流程与画作不经服务端
 node scripts/timeout-verify.mjs     # 超时兜底事件（含房主断线）
@@ -58,11 +59,13 @@ node scripts/timeout-verify.mjs     # 超时兜底事件（含房主断线）
 - 生产域名（唯一公开域名）：`https://up2down.plutokeating.beer`
 
 ```bash
-cd frontend && npm run build        # 必须先构建：Worker 的 [assets] 指向 frontend/dist
-cd ../signaling
+cd signaling
 npx wrangler login
-npx wrangler deploy                 # 部署到 up2down
+npm run deploy                      # 先构建 frontend/dist，再 wrangler deploy 到 up2down
 ```
+
+`npm run deploy` 会先执行 `npm --prefix ../frontend run build`，避免把过期的 `dist` 发上线；
+建议附带提交号便于追溯：`npx wrangler deploy --message "$(git rev-parse --short HEAD)"`。
 
 一个 Worker 同时提供：`/` → 前端静态产物（SPA 回落）、`/health` → 健康检查、
 `/rooms/<房间号>` → WebSocket 信令与 Durable Object 房间。把 https://up2down.plutokeating.beer

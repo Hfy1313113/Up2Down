@@ -214,14 +214,9 @@ npm run dev                # 运行在 http://localhost:5173
 本项目设计为 **一个 Cloudflare Worker 项目搞定前后端全部**：
 
 ```bash
-# 1. 构建前端静态资源（必须先构建，Worker assets 指向 frontend/dist）
-cd frontend
-npm run build
-
-# 2. 部署到 Cloudflare Worker
-cd ../signaling
+cd signaling
 npx wrangler login
-npx wrangler deploy
+npm run deploy      # 自动先构建 frontend/dist（Worker assets 指向它），再 wrangler deploy
 ```
 
 部署完成后，访问绑定的生产域名（默认 `https://up2down.plutokeating.beer`）即可开局。

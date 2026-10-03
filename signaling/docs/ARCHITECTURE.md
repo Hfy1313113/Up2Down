@@ -20,6 +20,7 @@
 | `players: Map<pid, {pid, name, ws, done}>` | 插入顺序即加入顺序 |
 | `hostId` | 首位加入者；断开时移交最早加入者 |
 | `raceDeadline` / `raceStarted` | 绘制超时兜底计时 |
+| `round` / `roundSeq` | 本轮状态 `idle`/`draw`/`race` 与开局时的 pid 序号水位；随 `room_state` 广播。pid 序号 ≤ `roundSeq` 者为本轮参与者，之后加入者候场；参与者全部离开则本轮作废回 `idle` |
 
 玩家身份是实例内自增的 `p1, p2, …`，随实例销毁而重置；房间空置后 DO 自然回收。
 
@@ -29,7 +30,7 @@
 - `done`：标记该玩家已提交，广播 `player_done` 与新的 `room_state`。**不接收、不保存画作。**
 - `signal` / `relay`：转给目标并附 `from`；目标不存在回 `error`。
 - `relay_all`：广播给除发送者外的所有人；若内层是 `draw_phase` 则同时启动超时计时。
-- `phase_start` / `round_over`：只操作计时器，不广播。
+- `phase_start` / `round_over`：操作计时器并切换本轮状态（`draw` / `race`），状态变化时广播 `room_state`；`again` 回 `idle`。
 - `ping`：回 `pong`（前端每 25s 一次，兼作断线探测）。
 - 其余类型（`start` / `again` / `race` 等）：原样广播并附 `from`，并同步计时器状态。
 

@@ -14,7 +14,7 @@
 |---|---|---|---|
 | C→S | `join` | `name` | 加入房间；满 4 人回 `error{for:"join"}` 并以 1008 关闭连接，前端据此立即提示失败 |
 | S→C | `joined` | `id`, `room` | 单播：分配的玩家 id |
-| S→C | `room_state` | `room`, `host`, `players[{id,name,done}]` | 广播：成员变化；前端据此建立/拆除 P2P 连接 |
+| S→C | `room_state` | `room`, `host`, `round`, `roundSeq`, `players[{id,name,done}]` | 广播：成员或本轮状态变化；前端据此建立/拆除 P2P 连接。`round` ∈ `idle`/`draw`/`race`；`roundSeq` 为开局时的 pid 序号水位，pid 序号 ≤ `roundSeq` 的成员是本轮参与者，之后加入者在大厅候场 |
 | C→S | `signal` | `to`, `data{kind:"offer"\|"answer",sdp}` / `data{kind:"candidate",candidate}` | WebRTC 信令，Worker 原样转发并附 `from` |
 | C→S | `relay` | `to`, `data` | 定向兜底：把一条游戏消息转给指定玩家 |
 | C→S | `relay_all` | `data` | 广播兜底：转发给房间内其他所有人 |
@@ -42,6 +42,10 @@
 
 前端的 `_close` / `_rejoined` 为传输层内部事件（控制面断开、重连后拿到新 id），不属于对端可发的协议。
 
+**发送者校验**：传输层把每条数据面消息按其到达通道标注 `_from`（DataChannel 所属 peer 的 id，或 Worker
+在 `relay`/`relay_all` 上附加的 `from`），不信任消息体自带字段。上层据此只接受：房主发出的
+`draw_phase` / `race` / `again` / `race_result`，本人发出的 `done` / `horse_boost` / `horse_bucked_off`。
+
 ## 时序
 
 ```
@@ -60,6 +64,8 @@ C1 ─DC: again──────────► C2 C3 ；─notify: again─►
 ## 房间规则
 
 - 每房间最多 4 人；首位加入者为房主，房主断开自动移交最早加入者；空房自然销毁。
+- 对局进行中（`round ≠ idle`）加入的成员为候场者：不计入「全员提交」判定、不进入本局 `race`，
+  大厅显示「对局进行中」，房主「再来一局」后随下一局一起开始；本轮参与者全部离开时本轮自动作废回 `idle`。
 - 断线即从成员表移除并广播 `room_state`，其余端据此关闭对应 P2P 连接。
 - 绘制阶段总时限 200s（服务端兜底）；每个部位 50s（前端本地计时）。
 - 未提交者以空画作参与（前端合成默认马，`quality=0.7`）。
