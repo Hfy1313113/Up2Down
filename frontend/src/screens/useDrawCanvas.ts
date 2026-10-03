@@ -203,31 +203,119 @@ export function useDrawCanvas() {
     }
     ctx.restore();
 
-    // 部位骨骼预览
+    // 连杆骨骼预览：把识别结果反算回画布坐标，直接叠在笔画上（躯干 / 四腿连杆 / 脖子 / 头与朝向 / 耳尖 / 象鼻 / 尾巴）
     if (previewRef.current) {
       const model: ElephantModel = Recognize.analyzeParts(collectAll());
-      ctx.save();
-      const scale = 1.6, bx = LOGICAL_W / 2, by = LOGICAL_H * 0.78;
-      ctx.translate(bx, by); ctx.scale(scale, -scale);
-      ctx.translate(0, model.torso.cy);
-      ctx.strokeStyle = accent;
-      ctx.fillStyle = accent;
-      ctx.lineWidth = 2;
-      ctx.setLineDash([5, 4]);
-      const T = model.torso;
-      ctx.beginPath(); ctx.moveTo(-T.len / 2, 0); ctx.lineTo(T.len / 2, 0); ctx.stroke();
-      ctx.setLineDash([]);
-      for (const leg of model.legs) {
+      const cv = model.canvas;
+      if (cv) {
+        const toC = (p: Vec2): Vec2 => [cv.cx + p[0] / cv.scale, cv.feetY - p[1] / cv.scale];
+        const len = (v: number) => v / cv.scale;
+        ctx.save();
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        const ink = accent;
+        const dot = (p: Vec2, r: number) => { ctx.beginPath(); ctx.arc(p[0], p[1], r, 0, Math.PI * 2); ctx.fill(); };
+        const poly = (pts: Vec2[]) => {
+          if (pts.length < 2) return;
+          ctx.beginPath();
+          ctx.moveTo(pts[0][0], pts[0][1]);
+          for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+          ctx.stroke();
+        };
+
+        // 躯干：自动生成的胶囊轮廓（半透明填充 + 虚线边）
+        const T = model.torso;
+        const tc = toC([T.cx, T.cy]);
+        const tl = len(T.len), tt = len(T.thick);
+        ctx.fillStyle = "rgba(226, 112, 58, 0.10)";
+        ctx.strokeStyle = ink;
+        ctx.globalAlpha = 0.9;
+        ctx.lineWidth = 3;
+        ctx.setLineDash([8, 6]);
         ctx.beginPath();
-        ctx.moveTo(leg.hip[0], leg.hip[1]);
-        ctx.lineTo(leg.knee[0], leg.knee[1]);
-        ctx.lineTo(leg.foot[0], leg.foot[1]);
+        ctx.roundRect(tc[0] - tl / 2, tc[1] - tt / 2, tl, tt, tt / 2);
+        ctx.fill();
         ctx.stroke();
-        ctx.beginPath(); ctx.arc(leg.hip[0], leg.hip[1], 3, 0, Math.PI * 2); ctx.fill();
-        ctx.beginPath(); ctx.arc(leg.knee[0], leg.knee[1], 2.2, 0, Math.PI * 2); ctx.fill();
+        ctx.setLineDash([]);
+
+        // 四条腿：髋 → 膝 → 足 连杆与关节点；合成腿用浅色虚线
+        for (const leg of model.legs) {
+          const hip = toC(leg.hip), knee = toC(leg.knee), foot = toC(leg.foot);
+          ctx.strokeStyle = ink;
+          ctx.fillStyle = ink;
+          ctx.lineWidth = leg.synthesized ? 3 : 5;
+          ctx.globalAlpha = leg.synthesized ? 0.45 : 0.9;
+          ctx.setLineDash(leg.synthesized ? [6, 6] : []);
+          poly([hip, knee, foot]);
+          ctx.setLineDash([]);
+          dot(hip, 7);
+          dot(knee, 5.5);
+          // 足底小横线
+          ctx.beginPath(); ctx.moveTo(foot[0] - 10, foot[1]); ctx.lineTo(foot[0] + 10, foot[1]); ctx.stroke();
+        }
+        ctx.globalAlpha = 0.9;
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = ink;
+        ctx.fillStyle = ink;
+
+        // 脖子：脖子根 → 头端
+        const H = model.head;
+        const neckBase = H.neckBaseX != null && H.neckBaseY != null
+          ? toC([H.neckBaseX, H.neckBaseY])
+          : toC([T.cx + T.len * 0.38, T.cy + T.thick * 0.28]);
+        const neckEnd = toC([H.neckX, H.neckY]);
+        poly([neckBase, neckEnd]);
+        dot(neckBase, 6);
+
+        // 头：头心圆 + 朝向箭头
+        const hc = toC([H.x, H.y]);
+        const hr = len(H.size) * 0.6;
+        ctx.beginPath(); ctx.arc(hc[0], hc[1], hr, 0, Math.PI * 2); ctx.stroke();
+        dot(hc, 5);
+        const dx = H.dirX ?? 0.7, dy = -(H.dirY ?? 0.7);   // 本地 y 向上 → 画布 y 向下
+        const ax = hc[0] + dx * hr * 1.6, ay = hc[1] + dy * hr * 1.6;
+        ctx.beginPath(); ctx.moveTo(hc[0], hc[1]); ctx.lineTo(ax, ay); ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(ax, ay);
+        ctx.lineTo(ax - dx * 12 + dy * 7, ay - dy * 12 - dx * 7);
+        ctx.lineTo(ax - dx * 12 - dy * 7, ay - dy * 12 + dx * 7);
+        ctx.closePath(); ctx.fill();
+
+        // 耳尖：小三角；象鼻：曲线；尾巴：曲线
+        for (const tip of H.earTips ?? []) {
+          const t = toC(tip);
+          ctx.beginPath();
+          ctx.moveTo(t[0], t[1] - 9); ctx.lineTo(t[0] - 8, t[1] + 6); ctx.lineTo(t[0] + 8, t[1] + 6);
+          ctx.closePath(); ctx.fill();
+        }
+        if (H.trunk?.length) {
+          ctx.lineWidth = 5;
+          poly(H.trunk.map(toC));
+          dot(toC(H.trunk[H.trunk.length - 1]), 5);
+        }
+        if (model.tail?.curve?.length) {
+          ctx.lineWidth = 3;
+          poly(model.tail.curve.map(toC));
+          dot(toC(model.tail.curve[0]), 5);
+        }
+
+        // 图例
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = "rgba(255, 250, 240, 0.95)";
+        ctx.strokeStyle = ink;
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.roundRect(14, LOGICAL_H - 46, 470, 32, 8); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = ink;
+        ctx.font = "bold 16px sans-serif";
+        ctx.textAlign = "left";
+        ctx.textBaseline = "middle";
+        const synthN = model.legs.filter(l => l.synthesized).length;
+        ctx.fillText(
+          `连杆骨骼预览 · 腿 ${model.legs.length - synthN}/4 手绘${synthN ? `（${synthN} 条系统代偿）` : ""} · 头${H.found ? "✓" : "缺省"} · 鼻${H.trunk?.length ? "✓" : "程序化"} · 尾${model.tail?.curve?.length ? "✓" : "缺省"}`,
+          26, LOGICAL_H - 30,
+        );
+        ctx.restore();
       }
-      ctx.beginPath(); ctx.arc(model.head.x, model.head.y, 5, 0, Math.PI * 2); ctx.stroke();
-      ctx.restore();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [part]);

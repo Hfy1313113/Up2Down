@@ -73,6 +73,10 @@ lobby ──房主 startGame()──► draw ──三部位画完 prepareBirth(
 
 ## 渲染层（`src/three/` 与 UI 呈现）
 
+- **连杆骨骼预览**（`useDrawCanvas.ts`）：勾选后每次笔画变化都重新 `analyzeParts`，并用 `model.canvas`（`normalize` 记录的 `cx / feetY / scale`）
+  把识别结果反算回画布坐标叠在笔画上：自动生成的躯干胶囊、四腿髋→膝→足连杆与关节点（合成腿为浅色虚线）、脖子、头心圆与朝向箭头、耳尖、象鼻与尾巴曲线，
+  底部图例显示手绘腿数、头/鼻/尾是否识别到。
+
 - **Tailwind CSS 页面框架**：全站屏幕采用 Tailwind CSS 工具类做响应式排版，适配手机、平板与桌面端。
   **层叠规则**：Tailwind v4 的工具类位于 `@layer utilities`，任何未分层的元素/类选择器都会压过工具类（与权重无关）。
   因此 `index.css` 只在 `@layer base` 里放 body/#root 等基础样式，在 `@layer components` 里放画板网格、动画类、风格芯片行、法务页排版等，

@@ -65,6 +65,11 @@ export interface ElephantModel {
   tail?: TailModel;
   bodyH: number;
   quality: number;
+  /**
+   * 画布坐标 → 本地坐标的映射参数（仅供绘制屏把骨骼预览反算回画布叠在笔画上）：
+   * local = ((x - cx) * scale, (feetY - y) * scale)
+   */
+  canvas?: { cx: number; feetY: number; scale: number };
 }
 
 export interface PartStrokes {

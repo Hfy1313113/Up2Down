@@ -147,3 +147,25 @@ describe("Recognize.analyzeParts · 象鼻", () => {
     expect(model.head.found).toBe(true);
   });
 });
+
+describe("Recognize.analyzeParts · 画布映射（骨骼预览反算）", () => {
+  it("canvas 映射能把本地坐标精确反算回画布：足端与笔画终点一致，象鼻/尾巴端点落在原笔画上", () => {
+    const parts = synthParts();
+    const model = Recognize.analyzeParts(parts);
+    const cv = model.canvas!;
+    expect(cv.scale).toBeGreaterThan(0);
+    const toC = (p: [number, number]) => [cv.cx + p[0] / cv.scale, cv.feetY - p[1] / cv.scale];
+    // 每条腿的足端 = 该腿笔画的最低端点
+    for (let i = 0; i < 4; i++) {
+      const pts = parts.legs![i].points!;
+      const low = pts[0][1] > pts[pts.length - 1][1] ? pts[0] : pts[pts.length - 1];
+      const f = toC(model.legs[i].foot);
+      expect(f[0]).toBeCloseTo(low[0], 5);
+      expect(f[1]).toBeCloseTo(low[1], 5);
+    }
+    // 尾巴曲线首点在画布上靠近尾巴笔画起点
+    const tailStart = parts.butt![1].points![0];
+    const t0 = toC(model.tail!.curve![0]);
+    expect(Math.hypot(t0[0] - tailStart[0], t0[1] - tailStart[1])).toBeLessThan(3);
+  });
+});

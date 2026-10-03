@@ -735,6 +735,7 @@ function normalize(raw: NormalizeRaw): ElephantModel {
     })(),
     bodyH: (raw.feetY - raw.torsoCy) * scale,
     quality: raw.legs.reduce((a, l) => a + l.quality, 0) / raw.legs.length,
+    canvas: { cx: raw.cx, feetY: raw.feetY, scale },
   };
   model.legs[0].hip[1] += model.torso.thick * 0.10;
   model.legs[1].hip[1] += model.torso.thick * 0.10;
