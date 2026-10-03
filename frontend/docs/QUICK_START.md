@@ -19,7 +19,7 @@ npx tsc --noEmit -p tsconfig.app.json   # 类型检查
 | 变量 / 文件 | 默认 | 说明 |
 |---|---|---|
 | `VITE_SIGNAL_URL` | 见下 | 一般**不需要设置**：开发态默认 `ws://localhost:8787`，构建产物由 Worker 托管时同源自动推导 |
-| `public/styles/<风格id>/music/race.mp3` | 无 | 可选正赛音乐文件；`*.mp3/*.ogg/*.wav` 已被根 `.gitignore` 排除。缺失时回落到风格包内置程序化乐谱 |
+| `public/styles/<风格id>/music/race.mp3` | 无 | 可选正赛音乐文件，随仓库提交与部署；缺失时回落到风格包内置程序化乐谱 |
 
 在 `frontend/.env.local` 中覆盖即可（该文件不入库）。只有在把前端单独部署到别处
 （例如 Cloudflare Pages）时才需要显式指定 `wss://<Worker 域名>`。

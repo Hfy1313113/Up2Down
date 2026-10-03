@@ -27,7 +27,3 @@ desktop.ini
 .idea/
 *.swp
 
-# --- 风格包的第三方音频文件由部署者自行放置，不入库（见 docs/ARCHITECTURE.md 风格包一节） ---
-frontend/public/styles/*/music/*.mp3
-frontend/public/styles/*/music/*.ogg
-frontend/public/styles/*/music/*.wav

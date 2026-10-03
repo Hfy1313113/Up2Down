@@ -84,6 +84,6 @@ src/
 3. 材质描述 `MaterialSpec`：`color`（可写 `"$player"` 取玩家身份色）、`texture`（`{kind:"image", url}` 或 `{kind:"procedural", recipe}`）、`repeat`、`roughness`、`metalness`、`emissive`、`unlit`、`opacity`。
    程序化配方 `recipe.type`：`solid, stripes, spots, noise, wrinkle, checker, paisley, mandala, grid, fringe`。
 4. 程序化乐谱 `ProceduralTrack`：`bpm`、`root`（Hz）、`scale`（半音偏移数组）、`drums`（十六分音符网格，字符 `K/S/h/H/T/t/.`，长度为 16 的倍数）、`melody`（八分音符，音阶度数，`-100` 休止）、`bass`（每项一拍）、`melodyInstrument` / `bassInstrument`（`pluck, lead, drone, bass, bell, square`）、`drone`、`swing`、`gain`。
-5. 可选音频文件放 `public/styles/<id>/music/`（已 gitignore），运行 `npm test` 让 `tests/style.test.ts` 与 `tests/sequencer.test.ts` 校验，再 `node scripts/screenshot.mjs <id>` 目视验证。
+5. 可选音频文件放 `public/styles/<id>/music/` 并提交到仓库，运行 `npm test` 让 `tests/style.test.ts` 与 `tests/sequencer.test.ts` 校验，再 `node scripts/screenshot.mjs <id>` 目视验证。
 
 详见 [ARCHITECTURE.md](ARCHITECTURE.md) 与 [QUICK_START.md](QUICK_START.md)。

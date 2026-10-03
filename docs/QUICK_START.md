@@ -40,7 +40,7 @@ npm run dev
 | 位置 | 变量 / 文件 | 默认 | 说明 |
 |---|---|---|---|
 | frontend | `VITE_SIGNAL_URL` | 见下 | 只需在前端单独部署到别处时才设置；默认开发态连 `ws://localhost:8787`，生产态同源 |
-| frontend | `public/styles/<风格id>/music/race.mp3` | 无 | 可选的正赛音乐文件（`*.mp3/*.ogg/*.wav` 不入库）；缺失时回落到风格包内置的程序化乐谱 |
+| frontend | `public/styles/<风格id>/music/race.mp3` | 无 | 可选的正赛音乐文件，随仓库一起提交与部署；缺失时回落到风格包内置的程序化乐谱 |
 | signaling | `DRAW_TIMEOUT_MS` | `200000` | 绘制阶段服务端兜底超时（改常量即可） |
 
 风格包本身不是配置项，而是代码：`frontend/src/style/packs/<id>/index.ts`，新增目录即自动注册；默认风格为 `bollywood`，
