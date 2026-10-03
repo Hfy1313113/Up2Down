@@ -104,6 +104,7 @@ lobby ──房主 startGame()──► draw ──三部位画完 prepareBirth(
   InstancedMesh 栅栏、终点门与双色格横幅、礼花筒基座、云朵，再按 `props[]` 调 `props.buildProps()`；装饰物按 `seed` 确定性分布，`torana` / `bunting` 横跨赛道居中，其余按侧放置，神庙门洞与高速路灯灯臂朝向跑道，方块车 / 厢货车头朝 +x（与赛跑方向一致），限速牌两面都贴标牌纹理。
 - `raceScene.RaceScene(canvas, entries, myIndex, pack)`：相机跟随自身大象（第三人称）、第一人称自由转头环视，坠象时自动切入的**第二人称大象回望特写相机**（同时框住回眸的大象与升天的驭象师），以及出局后跟随领跑者（`leaderOf`）的观战相机。
   **面部直播画中画**：主画面渲染完后，用第二台 `faceCam`（fov 30→24）以 `setScissor` / `setViewport` 在同一画布右下角再渲染一次；相机架在驭象师头球正前方 `headR × (9.5 − 3.6k)` 处，随挥鞭强度 `k` 贴近、抖动（∝ k²）、机身滚转，正常时朝向取大象整体姿态（头部抖动因此可见），甩飞时改取头部朝向（镜头随人翻滚）；出局观战后不再渲染。
+  `faceCam` 只看渲染层 `FACE_LAYER`（1）：仅自己的驭象师子树（`rig.riderRoot`）与场景灯光启用该层，因此象头、路灯、对手都不会挡脸；灯光启用必须在 `buildEnvironment` 之后，否则驭象师不受光成剪影。
   区域由 `pipLayout(width, height)` 给出：宽屏贴右下角（宽 160~300px），窄屏抬到底部 HUD 之上；`RaceScreen` 用同一函数定位 HTML 覆盖层（边框、LIVE 标签、随 `whipIntensity` 加深的红色暗角与内发光）。
   礼花配色、浮动文案描边色取自风格包。渲染大象真实横纵位移 `(x, y, z)`、三维旋转与浮动碰撞文案。
 - **过载甩飞机制（`raceSim.ts` + `RaceScreen.tsx`）**：

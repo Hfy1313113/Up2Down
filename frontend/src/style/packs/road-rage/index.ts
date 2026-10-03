@@ -78,10 +78,11 @@ export default defineStylePack({
 
   environment: {
     // 傍晚转夜的高速：深蓝天幕、橙色路灯、青山剪影
-    sky: { top: "#141e4d", bottom: "#4f66b3" },
-    fog: { color: "#33467f", near: 90, far: 290 },
-    lights: { hemiSky: "#7b8fd6", hemiGround: "#1f3b2a", hemiIntensity: 1.0, sunColor: "#b9c6ff", sunIntensity: 0.8, sunPosition: [-40, 70, 40] },
-    ground: { texture: { kind: "procedural", recipe: { type: "noise", base: "#24523a", tint: "#1a3d2b", scale: 6, strength: 0.5, seed: 9 } }, repeat: [40, 8], roughness: 1 },
+    sky: { top: "#1b2a66", bottom: "#6b84cf" },
+    fog: { color: "#4a5f9e", near: 100, far: 300 },
+    // 夜景但要看得清：半球光与月光都偏亮，地面取路灯照亮后的青绿
+    lights: { hemiSky: "#aab9ee", hemiGround: "#3f6a4c", hemiIntensity: 1.7, sunColor: "#dde4ff", sunIntensity: 1.5, sunPosition: [-40, 70, 40] },
+    ground: { texture: { kind: "procedural", recipe: { type: "noise", base: "#2f6b49", tint: "#245538", scale: 6, strength: 0.45, seed: 9 } }, repeat: [40, 8], roughness: 1 },
     // 三车道沥青：路缘实线 + 车道虚线
     lane: { texture: { kind: "procedural", recipe: { type: "road", base: ASPHALT, line: LINE_WHITE, lanes: 3, dash: 0.5, seed: 3 }, size: 512 }, repeat: [26, 1], roughness: 0.95 },
     // 波形护栏：镀锌钢
@@ -95,7 +96,7 @@ export default defineStylePack({
     clouds: null,
     props: [
       { kind: "hill", count: 10, side: "both", offset: 80, jitter: 25, scale: 1.0, seed: 1,
-        materials: { grass: { color: "#2b6b4e", roughness: 1 } } },
+        materials: { grass: { color: "#357a58", roughness: 1 } } },
       { kind: "highwayLamp", count: 22, side: "both", offset: 10.6, scale: 1.0, seed: 2,
         materials: { post: { color: "#9aa3ad", metalness: 0.6, roughness: 0.4 }, lamp: { color: LAMP_GLOW, unlit: true } } },
       { kind: "roadSign", count: 3, side: "right", offset: 10.2, scale: 1.0, seed: 3,
@@ -118,8 +119,8 @@ export default defineStylePack({
     // 展台 = 一小段夜间公路
     disc: { texture: { kind: "procedural", recipe: { type: "road", base: ASPHALT, line: LINE_WHITE, lanes: 2, dash: 0.4, seed: 5 }, size: 512 }, roughness: 0.95 },
     ring: "#f5c400",
-    backdrop: "linear-gradient(180deg, #1a2656 0%, #5b73c2 100%)",
-    lights: { hemiSky: "#8ea0e0", hemiGround: "#2a3a2e", keyColor: "#ffd9a0" },
+    backdrop: "linear-gradient(180deg, #233270 0%, #6f87d0 100%)",
+    lights: { hemiSky: "#b4c2f0", hemiGround: "#3f5a48", keyColor: "#ffe0b0" },
   },
 
   ui: {

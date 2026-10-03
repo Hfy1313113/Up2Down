@@ -35,6 +35,8 @@ export interface ElephantRig {
   headLocal: THREE.Vector3;
   /** 驭象师头球（脸朝 group 本地 +x），供面部画中画相机取景 */
   riderHead: THREE.Object3D;
+  /** 驭象师整体（身体、头、附件、方向盘），面部画中画只渲染这一棵子树 */
+  riderRoot: THREE.Object3D;
   /** 驭象师头球半径（模型本地单位，乘 group 缩放即世界半径） */
   riderHeadR: number;
   dispose(): void;
@@ -747,7 +749,7 @@ export function buildElephant(model: ElephantModel, opts: BuildOptions): Elephan
   }
 
   return {
-    group, setPose, headLocal, riderHead, riderHeadR: headR,
+    group, setPose, headLocal, riderHead, riderRoot: riderGroup, riderHeadR: headR,
     dispose() {
       // 材质由 MaterialResolver 统一持有与释放，这里只释放几何
       disposables.forEach(d => d.dispose());

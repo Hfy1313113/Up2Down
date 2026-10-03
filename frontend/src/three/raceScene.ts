@@ -12,6 +12,9 @@ import { buildEnvironment } from "./environment";
 
 export type ViewMode = "third" | "first";
 
+/** 面部画中画专用渲染层：只有自己的驭象师与灯光启用，象头、对手、路灯都不会挡脸 */
+const FACE_LAYER = 1;
+
 /** 面部画中画区域（CSS 像素；y 自画布底边起算）。宽屏贴右下角，窄屏抬到底部 HUD 之上 */
 export interface PipRect { x: number; y: number; w: number; h: number }
 export function pipLayout(width: number, height: number): PipRect {
@@ -89,11 +92,14 @@ export class RaceScene {
     this.camera = new THREE.PerspectiveCamera(60, 1, 0.1, 800);
     this.track(this.camera);
     this.faceCam = new THREE.PerspectiveCamera(30, 4 / 3, 0.05, 400);
+    this.faceCam.layers.set(FACE_LAYER);
     this.track(this.faceCam);
 
     const S = WORLD_SCALE;
     // 天空/雾/灯光/地面/跑道/栅栏/终点门/礼花筒/云朵/装饰物：全部来自风格包声明
     buildEnvironment(this.scene, pack, this.materials, TRACK_LEN * S, x => this.track(x));
+    // 环境建好后，灯光必须同时启用面部层，否则画中画里的驭象师不受光成剪影
+    this.scene.traverse(o => { if ((o as THREE.Light).isLight) o.layers.enable(FACE_LAYER); });
 
     // 礼花粒子容器
     this.confettiGroup = new THREE.Group();
@@ -117,6 +123,7 @@ export class RaceScene {
       this.scene.add(textSprite);
 
       this.elephants.push({ rig, textSprite, spriteCanvas, spriteTex, lastText: null });
+      if (i === myIndex) rig.riderRoot.traverse(o => o.layers.enable(FACE_LAYER));
     });
 
     // 绑定第一人称视角转头手势
