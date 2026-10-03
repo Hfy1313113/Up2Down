@@ -71,5 +71,44 @@ ok(fifth.closed, "满员加入后服务端关闭连接");
 ok(!fifth.msgs.some(m => m.t === "joined"), "满员加入不分配 id");
 for (const m of members) m.ws.close();
 await sleep(200);
+
+// 本轮状态：开局后 room_state 带 round/roundSeq；中途加入者 pid 序号 > roundSeq（候场）；again 后回 idle；
+// 参与者全部离开后本轮作废回 idle
+const RROOM = `round42-${Date.now() % 100000}`;
+const rc = (name) => {
+  const ws = new WebSocket(`ws://localhost:8787/rooms/${RROOM}`);
+  const c = { ws, msgs: [], id: null };
+  ws.onmessage = (ev) => { const m = JSON.parse(ev.data); c.msgs.push(m); if (m.t === "joined") c.id = m.id; };
+  ws.onopen = () => ws.send(JSON.stringify({ t: "join", name }));
+  return c;
+};
+const r1 = await joined(rc("先到甲")), r2 = await joined(rc("先到乙"));
+await sleep(150);
+ok(last(r1, "room_state")?.round === "idle", "开局前 room_state.round=idle");
+r1.ws.send(JSON.stringify({ t: "phase_start" }));
+await sleep(200);
+let rs = last(r2, "room_state");
+ok(rs?.round === "draw" && rs.roundSeq === 2, `phase_start 后广播 round=draw, roundSeq=2 (${rs?.round},${rs?.roundSeq})`);
+const r3 = await joined(rc("中途丙"));
+await sleep(200);
+rs = last(r3, "room_state");
+ok(rs?.round === "draw" && Number(r3.id.slice(1)) > rs.roundSeq, "中途加入者 pid 序号 > roundSeq（候场）");
+r1.ws.send(JSON.stringify({ t: "round_over" }));
+await sleep(200);
+ok(last(r3, "room_state")?.round === "race", "round_over 后 round=race");
+r1.ws.send(JSON.stringify({ t: "again" }));
+await sleep(200);
+rs = last(r3, "room_state");
+ok(rs?.round === "idle" && rs.roundSeq === 3, "again 后 round=idle 且 roundSeq 提升到当前水位");
+// 新一轮：只有甲乙丙在场时开局，然后甲乙离开 → 本轮作废
+r1.ws.send(JSON.stringify({ t: "phase_start" }));
+await sleep(200);
+const r4 = await joined(rc("更晚丁"));
+await sleep(150);
+r1.ws.close(); r2.ws.close(); r3.ws.close();
+await sleep(400);
+ok(last(r4, "room_state")?.round === "idle", "参与者全部离开后本轮作废回 idle");
+r4.ws.close();
+await sleep(200);
 console.log(log.join("\n"));
 process.exit();

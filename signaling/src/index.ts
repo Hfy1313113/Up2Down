@@ -16,7 +16,6 @@ interface RoomState {
   seq: number;
 }
 
-const encoder = new TextEncoder();
 
 const DRAW_TIMEOUT_MS = 200_000;   // 绘制阶段总时限，到点服务端自动开赛
 
@@ -32,11 +31,19 @@ function broadcast(state: RoomState, obj: unknown, except?: WebSocket) {
   }
 }
 
-function roomStateMsg(state: RoomState, code: string) {
+type RoundState = "idle" | "draw" | "race";
+
+const pidNum = (pid: string) => Number(pid.slice(1)) || 0;
+
+function roomStateMsg(state: RoomState, code: string, round: RoundState, roundSeq: number) {
   return {
     t: "room_state",
     room: code,
     host: state.hostId,
+    // 本轮状态与开局时的 pid 序号水位：pid 序号 ≤ roundSeq 的成员才是本轮参与者，
+    // 中途加入者在大厅等待下一局，不参与"全员提交"判定也不进入本局赛跑
+    round,
+    roundSeq,
     players: [...state.players.values()].map(p => ({ id: p.pid, name: p.name, done: p.done })),
   };
 }
@@ -47,6 +54,8 @@ export class Room {
   roomState: RoomState;
   raceDeadline: number | null = null;   // 绘制阶段截止（epoch ms）
   raceStarted = false;
+  round: RoundState = "idle";           // 本轮阶段：idle（大厅）/ draw（绘制中）/ race（已开赛）
+  roundSeq = 0;                         // 开局时的 pid 序号水位，用于判定中途加入者
 
   constructor(state: DurableObjectState) {
     this.state = state;
@@ -58,11 +67,31 @@ export class Room {
     this.raceDeadline = Date.now() + timeoutMs;
     this.raceStarted = false;
     this.state.storage.setAlarm(this.raceDeadline);
+    this.setRound("draw", this.roomState.seq);
   }
 
   private cancelRaceTimer() {
     this.raceDeadline = null;
     this.state.storage.deleteAlarm();
+  }
+
+  private stateMsg() {
+    return roomStateMsg(this.roomState, this.code, this.round, this.roundSeq);
+  }
+
+  // 本轮状态变化时广播 room_state，让大厅里的中途加入者知道"对局进行中"
+  private setRound(round: RoundState, roundSeq = this.roundSeq) {
+    const changed = round !== this.round || roundSeq !== this.roundSeq;
+    this.round = round;
+    this.roundSeq = roundSeq;
+    if (changed) broadcast(this.roomState, this.stateMsg());
+  }
+
+  private hasParticipant(): boolean {
+    for (const pid of this.roomState.players.keys()) {
+      if (pidNum(pid) <= this.roundSeq) return true;
+    }
+    return false;
   }
 
   // 超时兜底事件不需要马匹载荷，由房主端本地组装
@@ -81,14 +110,7 @@ export class Room {
 
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
-    if (request.method === "GET" && url.pathname === "/health") {
-      return new Response(JSON.stringify({ ok: true }), {
-        headers: {
-          "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": "*",
-        },
-      });
-    }
+    // /health 由 Worker 入口直接应答，不会进入 DO
     if (request.method === "GET" && /^\/rooms\/[A-Za-z0-9_-]{1,32}$/.test(url.pathname)) {
       this.code = url.pathname.split("/")[2];
       if (request.headers.get("Upgrade") !== "websocket") {
@@ -127,7 +149,7 @@ export class Room {
           rs.players.set(pid, player);
           if (!rs.hostId) rs.hostId = pid;
           send(ws, { t: "joined", id: pid, room: this.code });
-          broadcast(rs, roomStateMsg(rs, this.code));
+          broadcast(rs, this.stateMsg());
           break;
         }
         case "done": {
@@ -135,7 +157,7 @@ export class Room {
           if (!p) return;
           p.done = true;
           broadcast(rs, { t: "player_done", id: pid, name: p.name });
-          broadcast(rs, roomStateMsg(rs, this.code));
+          broadcast(rs, this.stateMsg());
           break;
         }
         case "ping": {
@@ -151,6 +173,7 @@ export class Room {
         case "round_over": {
           this.raceStarted = true;
           this.cancelRaceTimer();
+          this.setRound("race");
           break;
         }
         // 纯转发：signal / relay → 目标玩家（不存在则回 error）；relay_all → 广播
@@ -169,8 +192,8 @@ export class Room {
         }
         default: {
           if (msg.t === "start") this.beginDrawPhase(DRAW_TIMEOUT_MS);
-          if (msg.t === "again") { this.raceStarted = false; this.cancelRaceTimer(); }
-          if (msg.t === "race") { this.raceStarted = true; this.cancelRaceTimer(); }
+          if (msg.t === "again") { this.raceStarted = false; this.cancelRaceTimer(); this.setRound("idle", rs.seq); }
+          if (msg.t === "race") { this.raceStarted = true; this.cancelRaceTimer(); this.setRound("race"); }
           broadcast(rs, { ...msg, from: pid }, ws);
         }
       }
@@ -191,10 +214,19 @@ export class Room {
       rs.hostId = rs.players.size ? [...rs.players.keys()][0] : null;
     }
     if (rs.players.size === 0) {
-      // 房间空 → 状态自然随 DO 空闲销毁
+      // 房间空 → 复位本轮状态；其余随 DO 空闲销毁
+      this.round = "idle";
+      this.cancelRaceTimer();
       return;
     }
-    broadcast(rs, roomStateMsg(rs, this.code));
+    // 本轮参与者全部离开（只剩中途加入者）→ 本轮作废，回到空闲让新成员能开局
+    if (this.round !== "idle" && !this.hasParticipant()) {
+      this.cancelRaceTimer();
+      this.raceStarted = false;
+      this.round = "idle";
+      this.roundSeq = rs.seq;
+    }
+    broadcast(rs, this.stateMsg());
   }
 }
 
