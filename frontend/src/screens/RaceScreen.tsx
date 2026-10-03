@@ -41,6 +41,8 @@ interface RankEntry {
 
 // 非房主本地模拟结束后最多等待房主权威结算的时长；超时（房主掉线等）则用本地名次兜底
 const RESULT_WAIT_MS = 8000;
+/** 结算弹出后「再来一局」按钮的锁定秒数 */
+const AGAIN_LOCK_SECONDS = 3;
 
 const WHIP_TEXTS = ["抽！象！💥", "快象加鞭！🐘", "象前冲！⚡", "万象更新！✨", "抽象起来！🔥", "具象化加速！💨"];
 const RANK_TITLES = ["冠军【抽象派大师】", "亚军【印象派】", "季军【具象派】", "殿军【盲人摸象】"];
@@ -57,6 +59,8 @@ export function RaceScreen({ demo = false }: { demo?: boolean }) {
   } | null>(null);
   const [spectating, setSpectating] = useState(false);
   const [awaitingHost, setAwaitingHost] = useState(false);
+  // 结算弹出后「再来一局」锁定 3 秒：玩家此前一直在连点加速，手指停不下来，防止误触直接跳走
+  const [againLock, setAgainLock] = useState(0);
   const spectatingRef = useRef(false);
   const resultShownRef = useRef(false);
   const [view, setView] = useState<ViewMode>("third");
@@ -82,10 +86,17 @@ export function RaceScreen({ demo = false }: { demo?: boolean }) {
   const myRunnerId = (g.elephants && g.elephants[myIndex]?.id) || (g.elephants && g.elephants[0]?.id) || "default";
 
   // 结算只展示一次：房主用本地名次并广播；非房主优先使用房主广播的权威名次
+  useEffect(() => {
+    if (againLock <= 0) return;
+    const t = setTimeout(() => setAgainLock(v => v - 1), 1000);
+    return () => clearTimeout(t);
+  }, [againLock]);
+
   const showResult = useCallback((rank: RankEntry[]) => {
     if (resultShownRef.current) return;
     resultShownRef.current = true;
     setAwaitingHost(false);
+    setAgainLock(AGAIN_LOCK_SECONDS);
     playSfx("blast");
     music.duck(0.35);
     const winner = rank.find(r => !r.failed);
@@ -476,10 +487,11 @@ export function RaceScreen({ demo = false }: { demo?: boolean }) {
             </ol>
             {iAmHost && (
               <button
-                onClick={() => { playSfx("uiTap"); playAgain(); }}
-                className="primary w-full py-2.5 sm:py-3 px-4 rounded-lg border-2 border-(--ui-ink) bg-(--ui-go) hover:bg-(--ui-go-hover) text-white font-bold text-sm sm:text-base shadow-[3px_3px_0_var(--ui-ink)] active:translate-x-0.5 active:translate-y-0.5 transition-all mt-2"
+                disabled={againLock > 0}
+                onClick={() => { if (againLock > 0) return; playSfx("uiTap"); playAgain(); }}
+                className="primary w-full py-2.5 sm:py-3 px-4 rounded-lg border-2 border-(--ui-ink) bg-(--ui-go) hover:bg-(--ui-go-hover) text-white font-bold text-sm sm:text-base shadow-[3px_3px_0_var(--ui-ink)] active:translate-x-0.5 active:translate-y-0.5 disabled:bg-slate-300 disabled:border-slate-400 disabled:text-slate-500 disabled:shadow-[2px_2px_0_#94a3b8] disabled:cursor-not-allowed disabled:active:translate-x-0 disabled:active:translate-y-0 transition-all mt-2"
               >
-                重回象限 (再来一局)
+                {againLock > 0 ? `先看看结算… (${againLock}s)` : "重回象限 (再来一局)"}
               </button>
             )}
           </div>

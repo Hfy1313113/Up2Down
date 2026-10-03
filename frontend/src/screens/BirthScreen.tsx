@@ -8,7 +8,7 @@ import type { ElephantModel } from "../game/types";
 import { getPack } from "../style/registry";
 import { playSfx } from "../audio/sfx";
 
-const OBSERVE_SECONDS = 15;
+const OBSERVE_SECONDS = 5;
 
 function getAppraisal(model: ElephantModel | null) {
   if (!model) return null;

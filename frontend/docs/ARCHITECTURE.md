@@ -109,7 +109,8 @@ lobby ──房主 startGame()──► draw ──三部位画完 prepareBirth(
 - **过载甩飞机制（`raceSim.ts` + `RaceScreen.tsx`）**：
   玩家高速连击使大象加速倍率接近或等于上限（`boost >= 1.55`）时，全屏边缘触发快闪红色呼吸氛围灯警告并浮现"差不多得了，别太抽了！"提示；若持续过载超过连续 3 秒，驭象师被大象甩下象背，判定该玩家对局失败并在结算中标记置底。
   甩飞后先播放约 4.5s 第二人称特写（相机架在象前侧方，注视点在象身与驭象师之间并随其升高而后退，象毯留在象背上，`RIDER_FLY_HEIGHT` 控制抛飞高度），动画播完后**转入观战**：镜头改为第三人称跟随当前领跑者，顶部提示「你已象征性出局 · 观战中」，直到全场完赛才结算。
-- **结算（权威名次）**：`RaceScreen` 的 rAF 循环在 `raceSim.over` 时，若本端是房主（`hostRef` 实时跟随 `g.host`，房主掉线移交后新房主接管），把 `ranking()` 以 `race_result` 广播并展示；非房主进入「等待房主结算」状态，收到 `race_result` 即展示，超过 `RESULT_WAIT_MS`（8s）未收到才用本地名次兜底。`resultShownRef` 保证结算只展示一次。
+- **结算（权威名次）**：`RaceScreen` 的 rAF 循环在 `raceSim.over` 时，若本端是房主（`hostRef` 实时跟随 `g.host`，房主掉线移交后新房主接管），把 `ranking()` 以 `race_result` 广播并展示；非房主进入「等待房主结算」状态，收到 `race_result` 即展示，超过 `RESULT_WAIT_MS`（8s）未收到才用本地名次兜底。`resultShownRef` 保证结算只展示一次；结算弹出后房主的「再来一局」按钮锁定 `AGAIN_LOCK_SECONDS`（3s）并倒计时显示，防止仍在连点加速的手指误触直接跳回大厅。
+- **具象化检阅时长**：`BirthScreen` 的 `OBSERVE_SECONDS = 5`，倒计时结束前「确认出圈起跑」不可点。
 - `birthScene.BirthScene(canvas, model, pack, playerIndex, events?, { preview? })`：展台圆盘材质、刻度环颜色、灯光来自 `pack.birth`；相机轨道 + 落地冲击与踉跄失衡物理反馈、平衡恢复后庆祝爆发、按实际包围盒把大象归一到合适尺度后取景；`attachDrag` 提供指针拖拽全自由 360° 球面轨道环视与缩放。
   `preview: true`（大厅 `StyleSelector` 使用）跳过登场动画，样板象原地奔跑并缓慢自转，风格切换时整个场景重建。
 - **大厅风格选择器**（`screens/StyleSelector.tsx`）：横向可滑动芯片行（色带 + 名称，选中项自动滚到中央）+ 实时预览展台；房主可点，非房主只读；选择即 `setStyle()`，UI 变量与预览立即变化。
