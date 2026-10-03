@@ -211,6 +211,134 @@ const BUILDERS: Record<PropKind, (c: PropCtx) => THREE.Object3D> = {
     m.rotation.y = rand() * Math.PI;
     return m;
   },
+  hill({ mat, track, rand }) {
+    // 连绵圆丘：几个压扁的球体并排（公路远景的卡通青山）
+    const g = new THREE.Group();
+    const geo = track(new THREE.SphereGeometry(1, 16, 10));
+    const m = mat("grass", { color: "#2e7d4f", roughness: 1 });
+    const n = 2 + Math.floor(rand() * 2);
+    for (let i = 0; i < n; i++) {
+      const r = 14 + rand() * 12;
+      const puff = new THREE.Mesh(geo, m);
+      puff.scale.set(r * (1.3 + rand() * 0.6), r * (0.45 + rand() * 0.25), r * (0.9 + rand() * 0.4));
+      puff.position.set((i - (n - 1) / 2) * r * 1.4, -r * 0.08, (rand() - 0.5) * r * 0.6);
+      g.add(puff);
+    }
+    return g;
+  },
+  highwayLamp({ mat, track, left }) {
+    // 高速公路路灯：高杆 + 伸向路面的灯臂 + 扁平自发光灯头与光晕
+    const g = new THREE.Group();
+    const post = mat("post", { color: "#9aa3ad", metalness: 0.6, roughness: 0.4 });
+    const lamp = mat("lamp", { color: "#ffd27a", unlit: true });
+    const dir = left ? 1 : -1;   // 朝向跑道中线（z=0）
+    const pole = new THREE.Mesh(track(new THREE.CylinderGeometry(0.12, 0.2, 9, 8)), post);
+    pole.position.y = 4.5;
+    g.add(pole);
+    const arm = new THREE.Mesh(track(new THREE.BoxGeometry(0.14, 0.14, 2.6)), post);
+    arm.position.set(0, 8.9, dir * 1.3);
+    arm.rotation.x = dir * 0.12;
+    g.add(arm);
+    const head = new THREE.Mesh(track(new THREE.BoxGeometry(1.1, 0.22, 0.5)), lamp);
+    head.position.set(0, 8.75, dir * 2.5);
+    g.add(head);
+    const glow = new THREE.Mesh(track(new THREE.SphereGeometry(0.42, 8, 6)), lamp);
+    glow.scale.set(1.3, 0.5, 1);
+    glow.position.set(0, 8.58, dir * 2.5);
+    g.add(glow);
+    return g;
+  },
+  roadSign({ mat, track }) {
+    // 圆形限速牌：立柱 + 轴沿 x 的薄圆柱，两个端面都贴标牌纹理（朝向来车 -x 与去向 +x）
+    const g = new THREE.Group();
+    const post = mat("post", { color: "#9aa3ad", metalness: 0.6, roughness: 0.4 });
+    const face = mat("face", {
+      texture: { kind: "procedural", recipe: { type: "label", base: "#ffffff", ring: "#d7261e", ink: "#111111", text: "100" } },
+      roughness: 0.6,
+    });
+    const pole = new THREE.Mesh(track(new THREE.CylinderGeometry(0.06, 0.08, 3.4, 6)), post);
+    pole.position.y = 1.7;
+    g.add(pole);
+    const disc = new THREE.Mesh(track(new THREE.CylinderGeometry(0.95, 0.95, 0.08, 24)), [post, face, face]);
+    disc.rotation.z = Math.PI / 2;
+    disc.position.set(0, 3.6, 0);
+    g.add(disc);
+    return g;
+  },
+  boxCar({ mat, track }) {
+    // 驾考宝典式低多边形方块轿车：车身 + 座舱玻璃 + 四轮 + 前后灯 + 圆后视镜，车头朝 +x
+    const g = new THREE.Group();
+    const body = mat("body", { color: "#d9b35a", roughness: 0.5, metalness: 0.1 });
+    const glass = mat("glass", { color: "#7fb6d8", roughness: 0.2, metalness: 0.3 });
+    const tire = mat("tire", { color: "#1d1f22", roughness: 0.95 });
+    const lamp = mat("lamp", { color: "#fff6d0", unlit: true });
+    const tail = mat("tailLamp", { color: "#ff3b2f", unlit: true });
+    const lower = new THREE.Mesh(track(new THREE.BoxGeometry(4.6, 1.0, 2.1)), body);
+    lower.position.y = 0.95;
+    g.add(lower);
+    const cabin = new THREE.Mesh(track(new THREE.BoxGeometry(2.5, 0.95, 1.9)), body);
+    cabin.position.set(-0.3, 1.9, 0);
+    g.add(cabin);
+    const wind = new THREE.Mesh(track(new THREE.BoxGeometry(2.56, 0.6, 1.94)), glass);
+    wind.position.set(-0.3, 1.95, 0);
+    g.add(wind);
+    const wheelGeo = track(new THREE.CylinderGeometry(0.46, 0.46, 0.36, 12));
+    for (const [x, z] of [[1.5, 1.0], [1.5, -1.0], [-1.5, 1.0], [-1.5, -1.0]]) {
+      const w = new THREE.Mesh(wheelGeo, tire);
+      w.rotation.x = Math.PI / 2;
+      w.position.set(x, 0.46, z);
+      g.add(w);
+    }
+    const lampGeo = track(new THREE.BoxGeometry(0.12, 0.3, 0.5));
+    for (const z of [-0.65, 0.65]) {
+      const h = new THREE.Mesh(lampGeo, lamp); h.position.set(2.32, 1.0, z); g.add(h);
+      const t = new THREE.Mesh(lampGeo, tail); t.position.set(-2.32, 1.0, z); g.add(t);
+    }
+    const mirrorGeo = track(new THREE.SphereGeometry(0.16, 8, 6));
+    for (const z of [-1.1, 1.1]) {
+      const m = new THREE.Mesh(mirrorGeo, body);
+      m.position.set(0.9, 1.75, z);
+      g.add(m);
+    }
+    return g;
+  },
+  boxTruck({ mat, track }) {
+    // 低多边形厢式货车：车头驾驶室 + 大货箱 + 六轮 + 前后灯，车头朝 +x
+    const g = new THREE.Group();
+    const cab = mat("cab", { color: "#d8dde3", roughness: 0.5, metalness: 0.1 });
+    const box = mat("box", { color: "#2b3fa8", roughness: 0.6 });
+    const glass = mat("glass", { color: "#7fb6d8", roughness: 0.2, metalness: 0.3 });
+    const tire = mat("tire", { color: "#1d1f22", roughness: 0.95 });
+    const lamp = mat("lamp", { color: "#fff6d0", unlit: true });
+    const tail = mat("tailLamp", { color: "#ff3b2f", unlit: true });
+    const chassis = new THREE.Mesh(track(new THREE.BoxGeometry(9.6, 0.5, 2.3)), tire);
+    chassis.position.set(-0.4, 0.95, 0);
+    g.add(chassis);
+    const cabMesh = new THREE.Mesh(track(new THREE.BoxGeometry(2.4, 2.6, 2.5)), cab);
+    cabMesh.position.set(3.2, 2.5, 0);
+    g.add(cabMesh);
+    const windshield = new THREE.Mesh(track(new THREE.BoxGeometry(0.12, 1.2, 2.2)), glass);
+    windshield.position.set(4.42, 3.05, 0);
+    g.add(windshield);
+    const container = new THREE.Mesh(track(new THREE.BoxGeometry(6.6, 3.1, 2.6)), box);
+    container.position.set(-1.5, 2.75, 0);
+    g.add(container);
+    const wheelGeo = track(new THREE.CylinderGeometry(0.6, 0.6, 0.4, 12));
+    for (const x of [3.0, -1.6, -3.2, -4.4]) {
+      for (const z of [-1.15, 1.15]) {
+        const w = new THREE.Mesh(wheelGeo, tire);
+        w.rotation.x = Math.PI / 2;
+        w.position.set(x, 0.6, z);
+        g.add(w);
+      }
+    }
+    const lampGeo = track(new THREE.BoxGeometry(0.12, 0.34, 0.6));
+    for (const z of [-0.85, 0.85]) {
+      const h = new THREE.Mesh(lampGeo, lamp); h.position.set(4.44, 1.7, z); g.add(h);
+      const t = new THREE.Mesh(lampGeo, tail); t.position.set(-4.84, 1.5, z); g.add(t);
+    }
+    return g;
+  },
 };
 
 /** 按风格包声明沿赛道铺设一种装饰物 */

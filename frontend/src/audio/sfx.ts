@@ -202,6 +202,76 @@ const presets: Record<SynthPreset, Preset> = {
     n.connect(g).connect(dest);
     n.start(t0);
   },
+  hornHonk(ctx, dest, gain) {
+    // 汽车双音喇叭：两只方波 + 低通，短促一声
+    const t0 = ctx.currentTime;
+    for (const f of [392, 494]) {
+      const o = ctx.createOscillator();
+      o.type = "square";
+      o.frequency.setValueAtTime(f, t0);
+      const lp = ctx.createBiquadFilter();
+      lp.type = "lowpass"; lp.frequency.value = 1400;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.linearRampToValueAtTime(0.16 * gain, t0 + 0.015);
+      g.gain.setValueAtTime(0.16 * gain, t0 + 0.16);
+      g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.23);
+      o.connect(lp).connect(g).connect(dest);
+      o.start(t0); o.stop(t0 + 0.26);
+    }
+  },
+  engineRev(ctx, dest, gain) {
+    // 地板油起步：锯齿波转速上扬 + 低通打开，顺带一声轮胎打滑
+    const t0 = ctx.currentTime;
+    const o = ctx.createOscillator();
+    o.type = "sawtooth";
+    o.frequency.setValueAtTime(55, t0);
+    o.frequency.exponentialRampToValueAtTime(240, t0 + 0.5);
+    o.frequency.exponentialRampToValueAtTime(160, t0 + 0.9);
+    const lp = ctx.createBiquadFilter();
+    lp.type = "lowpass";
+    lp.frequency.setValueAtTime(300, t0);
+    lp.frequency.exponentialRampToValueAtTime(2400, t0 + 0.5);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.linearRampToValueAtTime(0.32 * gain, t0 + 0.08);
+    g.gain.setValueAtTime(0.32 * gain, t0 + 0.6);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + 1.0);
+    o.connect(lp).connect(g).connect(dest);
+    o.start(t0); o.stop(t0 + 1.05);
+    presetsDelayed(ctx, dest, "tireScreech", t0 + 0.05, gain * 0.5);
+  },
+  tireScreech(ctx, dest, gain) {
+    // 轮胎尖啸：高 Q 带通噪声，中心频率先扬后落
+    const t0 = ctx.currentTime;
+    const n = ctx.createBufferSource();
+    n.buffer = noise(ctx, 0.7);
+    const bp = ctx.createBiquadFilter();
+    bp.type = "bandpass"; bp.Q.value = 9;
+    bp.frequency.setValueAtTime(1500, t0);
+    bp.frequency.exponentialRampToValueAtTime(3200, t0 + 0.25);
+    bp.frequency.exponentialRampToValueAtTime(1100, t0 + 0.65);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.linearRampToValueAtTime(0.5 * gain, t0 + 0.05);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.7);
+    n.connect(bp).connect(g).connect(dest);
+    n.start(t0);
+  },
+  crash(ctx, dest, gain) {
+    // 追尾：低频闷响 + 高频金属碎响
+    const t0 = ctx.currentTime;
+    presets.thud(ctx, dest, gain * 1.2);
+    const n = ctx.createBufferSource();
+    n.buffer = noise(ctx, 0.3, 2200);
+    const hp = ctx.createBiquadFilter();
+    hp.type = "highpass"; hp.frequency.value = 900;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.35 * gain, t0);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.3);
+    n.connect(hp).connect(g).connect(dest);
+    n.start(t0);
+  },
 };
 
 function presetsDelayed(ctx: AudioContext, dest: AudioNode, id: SynthPreset, at: number, gain: number): void {

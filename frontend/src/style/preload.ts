@@ -7,7 +7,9 @@ function collectImageUrls(pack: StylePack): string[] {
   const urls = new Set<string>();
   const visit = (m?: MaterialSpec) => { if (m?.texture?.kind === "image") urls.add(m.texture.url); };
   Object.values(pack.elephant).forEach(visit);
+  pack.elephantAccessories?.forEach(a => Object.values(a.materials ?? {}).forEach(visit));
   Object.values(pack.rider.materials).forEach(visit);
+  if (pack.rider.face) [pack.rider.face.calm, pack.rider.face.tense, pack.rider.face.furious].forEach(visit);
   const env = pack.environment;
   [env.ground, env.lane, env.fence, env.gate.pole, env.gate.cannon, pack.birth.disc].forEach(visit);
   env.props.forEach(p => Object.values(p.materials ?? {}).forEach(visit));

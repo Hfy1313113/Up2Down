@@ -5,9 +5,9 @@
 // 识别出的长度数值不改（速度公式不受影响），只在建模时乘以大象体型的视觉比例系数。
 import * as THREE from "three";
 import { computePose } from "../game/gait";
-import type { ElephantModel, LegModel, Pose, Vec2 } from "../game/types";
+import type { ElephantModel, LegModel, Pose, TorsoModel, Vec2 } from "../game/types";
 import type { MaterialResolver } from "../style/materials";
-import type { ElephantSlot, RiderAccessory, RiderSlot, StylePack } from "../style/types";
+import type { ElephantAccessory, ElephantSlot, MaterialSpec, RiderAccessory, RiderSlot, StylePack } from "../style/types";
 
 // 模型本地坐标（躯干 120 单位）→ 世界尺度
 export const WORLD_SCALE = 0.02;
@@ -48,6 +48,8 @@ interface LegRig {
   hipGroup: THREE.Group;
   kneeGroup: THREE.Group;
   dir: 1 | -1;   // hind=-1(前收)/fore=1，与 legPoints 的 dir 一致
+  /** 小腿长度（膝→足），附件库在足部挂件时用 */
+  L2: number;
 }
 
 type Track = <T extends { dispose(): void }>(x: T) => T;
@@ -79,7 +81,7 @@ function buildLeg(leg: LegModel, mat: (slot: ElephantSlot) => THREE.Material, tr
   }
 
   hipGroup.add(kneeGroup);
-  return { root: hipGroup, rig: { hipGroup, kneeGroup, dir } };
+  return { root: hipGroup, rig: { hipGroup, kneeGroup, dir, L2: leg.L2 } };
 }
 
 /** 两点之间放一段圆柱（用于象鼻分节） */
@@ -175,6 +177,165 @@ const ACCESSORIES: Record<RiderAccessory, (c: AccessoryCtx) => void> = {
     m.rotation.z = -0.22;
     m.rotation.x = 0.55;
     body.add(m);
+  },
+  curlyHair({ head, headR, mat, track }) {
+    // 蓬松黑卷发：三圈小球绕头堆叠 + 头顶大球；正前方一圈抬高到额头，不遮眉眼（脸贴图在 +x）
+    const geo = track(new THREE.SphereGeometry(headR * 0.34, 8, 6));
+    const m = mat("hair");
+    const rings: [number, number, number][] = [[0.95, 0.42, 10], [0.8, 0.72, 9], [0.5, 0.92, 7]];   // [半径比, 高度比, 个数]
+    for (const [rr, hh, n] of rings) {
+      for (let i = 0; i < n; i++) {
+        const a = (i / n) * Math.PI * 2 + hh;
+        const front = Math.max(0, Math.cos(a));
+        const puff = new THREE.Mesh(geo, m);
+        puff.position.set(Math.cos(a) * headR * rr, headR * (hh + front * 0.33), Math.sin(a) * headR * rr);
+        head.add(puff);
+      }
+    }
+    const top = new THREE.Mesh(track(new THREE.SphereGeometry(headR * 0.62, 10, 8)), m);
+    top.position.set(-headR * 0.1, headR * 0.8, 0);
+    head.add(top);
+  },
+  seat({ body, bodyR, mat, track }) {
+    // 汽车座椅：靠背 + 头枕，固定在驭象师身后（随身体、不随头转动）
+    const m = mat("headwear");
+    const back = new THREE.Mesh(track(new THREE.BoxGeometry(bodyR * 0.22, bodyR * 1.35, bodyR * 1.1)), m);
+    back.position.set(-bodyR * 0.55, bodyR * 0.75, 0);
+    back.rotation.z = -0.12;
+    body.add(back);
+    const rest = new THREE.Mesh(track(new THREE.BoxGeometry(bodyR * 0.22, bodyR * 0.62, bodyR * 0.78)), m);
+    rest.position.set(-bodyR * 0.3, bodyR * 1.62, 0);
+    body.add(rest);
+  },
+  steeringWheel({ body, bodyR, mat, track }) {
+    // 方向盘：轮圈 + 三辐 + 转向柱，立在驭象师胸前
+    const m = mat("whipStick");
+    const wheel = new THREE.Mesh(track(new THREE.TorusGeometry(bodyR * 0.36, bodyR * 0.05, 8, 24)), m);
+    wheel.position.set(bodyR * 0.55, bodyR * 1.0, 0);
+    wheel.rotation.y = Math.PI / 2;    // 轮面朝向 ±x
+    wheel.rotation.x = 0.35;           // 上沿向驭象师后仰
+    body.add(wheel);
+    const spokeGeo = track(new THREE.BoxGeometry(bodyR * 0.05, bodyR * 0.68, bodyR * 0.06));
+    for (const a of [0, 2.1, -2.1]) {
+      const sp = new THREE.Mesh(spokeGeo, m);
+      sp.rotation.z = a;
+      sp.position.set(Math.sin(a) * bodyR * 0.02, 0, 0);
+      wheel.add(sp);
+    }
+    const hub = new THREE.Mesh(track(new THREE.SphereGeometry(bodyR * 0.08, 8, 6)), m);
+    wheel.add(hub);
+    const column = new THREE.Mesh(track(new THREE.CylinderGeometry(bodyR * 0.045, bodyR * 0.045, bodyR * 0.5, 6)), m);
+    column.position.set(bodyR * 0.72, bodyR * 0.8, 0);
+    column.rotation.z = 1.1;
+    body.add(column);
+  },
+};
+
+// ---------- 大象附件库（车件）：风格包只写 { kind, materials? }，几何在此实现 ----------
+interface ElephantAccCtx {
+  /** 大象根组（模型本地坐标，躯干约 120 单位） */
+  group: THREE.Group;
+  /** 头组：原点在头心、x 轴沿识别朝向 */
+  headGroup: THREE.Group;
+  /** 头尺寸 */
+  size: number;
+  torso: TorsoModel;
+  /** 躯干胶囊半径 */
+  radius: number;
+  legs: LegRig[];
+  mat: (slot: string, fallback: MaterialSpec) => THREE.Material;
+  track: Track;
+}
+const LAMP_ON: MaterialSpec = { color: "#fff6d0", unlit: true };
+const SIGNAL_ON: MaterialSpec = { color: "#ffb020", unlit: true };
+const TAIL_ON: MaterialSpec = { color: "#ff3b2f", unlit: true };
+const CHROME: MaterialSpec = { color: "#d7dde3", metalness: 0.8, roughness: 0.25 };
+const TIRE: MaterialSpec = { color: "#1d1f22", roughness: 0.95 };
+const ELEPHANT_ACCESSORY_BUILDERS: Record<ElephantAccessory, (c: ElephantAccCtx) => void> = {
+  headlights({ headGroup, size, mat, track }) {
+    // 头球是 (1.12, 1, 0.95) × 0.72·size 的椭球；大灯与转向灯都半嵌在球面上
+    const lampGeo = track(new THREE.BoxGeometry(size * 0.12, size * 0.17, size * 0.28));
+    const sigGeo = track(new THREE.BoxGeometry(size * 0.1, size * 0.12, size * 0.12));
+    const lamp = mat("lamp", LAMP_ON);
+    const sig = mat("signal", SIGNAL_ON);
+    for (const s of [-1, 1]) {
+      const l = new THREE.Mesh(lampGeo, lamp);
+      l.position.set(size * 0.68, -size * 0.02, s * size * 0.4);
+      headGroup.add(l);
+      const g = new THREE.Mesh(sigGeo, sig);
+      g.position.set(size * 0.33, -size * 0.02, s * size * 0.66);
+      headGroup.add(g);
+    }
+  },
+  taillights({ group, torso: T, radius, mat, track }) {
+    const hemiC = T.cx - T.len / 2 + radius;   // 躯干后端半球心
+    const geo = track(new THREE.BoxGeometry(radius * 0.16, radius * 0.26, radius * 0.36));
+    const tail = mat("tailLamp", TAIL_ON);
+    for (const s of [-1, 1]) {
+      const m = new THREE.Mesh(geo, tail);
+      m.position.set(hemiC - radius * 0.83, T.cy + radius * 0.05, s * radius * 0.55);
+      group.add(m);
+    }
+  },
+  plate({ group, torso: T, radius, mat, track }) {
+    // 车牌贴在屁股正后方（-x 面用标牌材质，其余面镀铬）
+    const hemiC = T.cx - T.len / 2 + radius;
+    const chrome = mat("chrome", CHROME);
+    const label = mat("plate", {
+      texture: { kind: "procedural", recipe: { type: "label", base: "#e9eef3", ink: "#1b2a4a", ring: "#1b2a4a", text: "象A·00001", shape: "rect" } },
+      roughness: 0.5,
+    });
+    const m = new THREE.Mesh(
+      track(new THREE.BoxGeometry(radius * 0.08, radius * 0.3, radius * 0.7)),
+      [chrome, label, chrome, chrome, chrome, chrome],
+    );
+    m.position.set(hemiC - radius * 0.97, T.cy - radius * 0.25, 0);
+    group.add(m);
+  },
+  mirrors({ headGroup, size, mat, track }) {
+    // 两侧圆后视镜：短杆从头两侧伸出 + 扁球镜面
+    const stalkGeo = track(new THREE.CylinderGeometry(size * 0.04, size * 0.04, size * 0.32, 6));
+    const mirrorGeo = track(new THREE.SphereGeometry(size * 0.16, 10, 8));
+    const body = mat("mirror", { color: "#2a2d33", roughness: 0.6 });
+    const glass = mat("chrome", CHROME);
+    for (const s of [-1, 1]) {
+      const stalk = new THREE.Mesh(stalkGeo, body);
+      stalk.rotation.x = Math.PI / 2;
+      stalk.position.set(size * 0.25, size * 0.05, s * size * 0.78);
+      headGroup.add(stalk);
+      const shell = new THREE.Mesh(mirrorGeo, body);
+      shell.scale.set(0.45, 1, 1);
+      shell.position.set(size * 0.25, size * 0.05, s * size * 1.0);
+      headGroup.add(shell);
+      const face = new THREE.Mesh(mirrorGeo, glass);
+      face.scale.set(0.2, 0.8, 0.8);
+      face.position.set(size * 0.2, size * 0.05, s * size * 1.0);
+      headGroup.add(face);
+    }
+  },
+  hubcaps({ legs, mat, track }) {
+    // 轮胎脚：每只象足外套一圈黑胎，外侧加镀铬轮毂盖
+    const tire = mat("tire", TIRE);
+    const chrome = mat("chrome", CHROME);
+    const tireGeo = track(new THREE.TorusGeometry(3.3 * LEG_R, 1.1 * LEG_R, 8, 18));
+    const capGeo = track(new THREE.CylinderGeometry(1.6 * LEG_R, 1.6 * LEG_R, 0.6, 12));
+    legs.forEach((leg, i) => {
+      const y = -leg.L2 - 2;
+      const ring = new THREE.Mesh(tireGeo, tire);
+      ring.rotation.x = Math.PI / 2;
+      ring.position.set(0, y, 0);
+      leg.kneeGroup.add(ring);
+      const outer = i % 2 ? 1 : -1;   // 与 buildElephant 中近/远侧 z 一致
+      const cap = new THREE.Mesh(capGeo, chrome);
+      cap.rotation.x = Math.PI / 2;
+      cap.position.set(0, y, outer * 4.4 * LEG_R);
+      leg.kneeGroup.add(cap);
+    });
+  },
+  bumper({ headGroup, size, mat, track }) {
+    const bar = new THREE.Mesh(track(new THREE.BoxGeometry(size * 0.12, size * 0.12, size * 1.35)), mat("chrome", CHROME));
+    bar.position.set(size * 0.62, -size * 0.55, 0);
+    headGroup.add(bar);
   },
 };
 
@@ -316,6 +477,14 @@ export function buildElephant(model: ElephantModel, opts: BuildOptions): Elephan
     legRigs.push(rig);
   });
 
+  // ---- 大象附件（车灯 / 后视镜 / 车牌 / 轮胎脚 / 保险杠……）按风格包清单挂载 ----
+  for (const spec of pack.elephantAccessories ?? []) {
+    ELEPHANT_ACCESSORY_BUILDERS[spec.kind]?.({
+      group, headGroup, size, torso: T, radius, legs: legRigs, track,
+      mat: (slot, fallback) => materials.get(spec.materials?.[slot] ?? fallback, playerIndex),
+    });
+  }
+
   // ---- 尾巴（识别曲线 → 管状细尾；否则默认尾柱）----
   const tailGroup = new THREE.Group();
   group.add(tailGroup);
@@ -365,11 +534,21 @@ export function buildElephant(model: ElephantModel, opts: BuildOptions): Elephan
   riderGroup.add(jacket);
 
   const headR = radius * 0.35;
-  const riderHead = new THREE.Mesh(track(new THREE.SphereGeometry(headR, 12, 10)), rMat("skin"));
+  // 脸：风格包给了 face 档位就按连点强度切换表情（calm → tense → furious），否则用 skin
+  const faceSpec = pack.rider.face;
+  const faceMats = faceSpec
+    ? (() => {
+        const calm = materials.get(faceSpec.calm, playerIndex);
+        const tense = faceSpec.tense ? materials.get(faceSpec.tense, playerIndex) : calm;
+        const furious = faceSpec.furious ? materials.get(faceSpec.furious, playerIndex) : tense;
+        return { calm, tense, furious };
+      })()
+    : null;
+  const riderHead = new THREE.Mesh(track(new THREE.SphereGeometry(headR, 24, 16)), faceMats?.calm ?? rMat("skin"));
   riderHead.position.set(radius * 0.15, radius * 1.55, 0);
   riderGroup.add(riderHead);
-  // 头发：后脑一块
-  const hair = new THREE.Mesh(track(new THREE.SphereGeometry(headR * 0.98, 10, 8, Math.PI * 0.5, Math.PI, 0, Math.PI * 0.6)), rMat("hair"));
+  // 头发：后脑一块（phi 从 -π/2 到 π/2 → x≤0 的后半球，正脸 +x 留给脸贴图）
+  const hair = new THREE.Mesh(track(new THREE.SphereGeometry(headR * 0.98, 10, 8, -Math.PI * 0.5, Math.PI, 0, Math.PI * 0.6)), rMat("hair"));
   hair.position.set(-headR * 0.05, headR * 0.05, 0);
   riderHead.add(hair);
 
@@ -467,6 +646,12 @@ export function buildElephant(model: ElephantModel, opts: BuildOptions): Elephan
     // 扇耳随步伐扇动
     earPhase += dt * 7;
     ears.forEach((ear, i) => { ear.rotation.y = (i === 0 ? -1 : 1) * (0.45 + Math.sin(earPhase + i) * 0.18); });
+
+    // 表情：甩飞或猛抽 → 暴怒；轻抽 → 紧绷；否则常态
+    if (faceMats) {
+      const face = buckedOff || whipIntensity > 0.7 ? faceMats.furious : whipIntensity > 0.2 ? faceMats.tense : faceMats.calm;
+      if (riderHead.material !== face) riderHead.material = face;
+    }
 
     if (buckedOff) {
       // 抽象大风车狂甩肢体与高空弹射旋转（抛飞高度系数与 raceScene 的第二人称相机取景一致）

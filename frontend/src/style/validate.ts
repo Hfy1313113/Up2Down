@@ -1,7 +1,7 @@
 // style/validate.ts —— 风格包结构校验（纯函数，可单测）：
 // 新风格包有缺槽、错 id、颜色数不对时在注册阶段直接报错，而不是等到赛跑时黑屏。
 import {
-  ELEPHANT_SLOTS, RIDER_SLOTS, RIDER_ACCESSORIES, PROP_KINDS, SFX_IDS, SYNTH_PRESETS,
+  ELEPHANT_SLOTS, ELEPHANT_ACCESSORIES, RIDER_SLOTS, RIDER_ACCESSORIES, PROP_KINDS, SFX_IDS, SYNTH_PRESETS,
   type StylePack, type MaterialSpec,
 } from "./types";
 
@@ -20,9 +20,18 @@ export function validatePack(pack: unknown): string[] {
     if (m.texture?.kind === "image" && !m.texture.url) errs.push(`${where} 图片纹理缺少 url`);
   };
   for (const s of ELEPHANT_SLOTS) checkMat(p.elephant?.[s], `elephant.${s}`);
+  for (const acc of p.elephantAccessories ?? []) {
+    if (!(ELEPHANT_ACCESSORIES as readonly string[]).includes(acc.kind)) errs.push(`未知大象附件 ${acc.kind}`);
+    for (const [slot, m] of Object.entries(acc.materials ?? {})) checkMat(m, `elephantAccessories.${acc.kind}.${slot}`);
+  }
   for (const s of RIDER_SLOTS) checkMat(p.rider?.materials?.[s], `rider.${s}`);
   for (const a of p.rider?.accessories ?? []) {
     if (!(RIDER_ACCESSORIES as readonly string[]).includes(a)) errs.push(`未知驭象师附件 ${a}`);
+  }
+  if (p.rider?.face) {
+    checkMat(p.rider.face.calm, "rider.face.calm");
+    if (p.rider.face.tense) checkMat(p.rider.face.tense, "rider.face.tense");
+    if (p.rider.face.furious) checkMat(p.rider.face.furious, "rider.face.furious");
   }
   const env = p.environment;
   if (!env) errs.push("缺少 environment");

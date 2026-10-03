@@ -14,7 +14,13 @@ export type ProceduralRecipe =
   | { type: "paisley"; base: string; ink: string; accent: string; seed?: number }
   | { type: "mandala"; base: string; ink: string; accent: string; rings?: number }
   | { type: "grid"; base: string; line: string; size?: number }
-  | { type: "fringe"; base: string; fringe: string; count?: number };
+  | { type: "fringe"; base: string; fringe: string; count?: number }
+  /** 沥青路面：u 方向为行车方向；实线路缘 + 车道间虚线（lanes 条车道），dash 为虚线占比 */
+  | { type: "road"; base: string; line: string; edge?: string; lanes?: number; dash?: number; seed?: number }
+  /** 卡通脸：画在驭象师头球的正前方（+x），mood 决定眉眼嘴（平静 / 怒视 / 咬牙冒汗） */
+  | { type: "face"; skin: string; ink: string; mood: "calm" | "angry" | "grit"; mouth?: string; sweat?: string }
+  /** 圆形标牌 / 车牌：底色 + 环 + 居中文字（限速牌、车牌号等） */
+  | { type: "label"; base: string; ink: string; text: string; ring?: string; shape?: "circle" | "rect" };
 
 export type TextureSpec =
   | { kind: "image"; url: string }
@@ -41,22 +47,46 @@ export const ELEPHANT_SLOTS = [
 ] as const;
 export type ElephantSlot = (typeof ELEPHANT_SLOTS)[number];
 export type ElephantSkin = Record<ElephantSlot, MaterialSpec>;
+/** 大象附件（车件）：几何由 elephantMesh 的附件库实现；风格包只声明挂哪些、可逐槽覆盖材质 */
+export const ELEPHANT_ACCESSORIES = ["headlights", "taillights", "mirrors", "plate", "hubcaps", "bumper"] as const;
+export type ElephantAccessory = (typeof ELEPHANT_ACCESSORIES)[number];
+export interface ElephantAccessorySpec {
+  kind: ElephantAccessory;
+  /** 覆盖该附件内部材质槽位（槽位名由附件库定义，如 lamp / signal / tailLamp / chrome / plate / tire） */
+  materials?: Record<string, MaterialSpec>;
+}
 
 export const RIDER_SLOTS = [
   "skin", "hair", "headwear", "jewel", "jacket", "pants", "boots", "whipStick", "whipLash",
 ] as const;
 export type RiderSlot = (typeof RIDER_SLOTS)[number];
 /** 附件几何由 elephantMesh 的附件库实现；风格包只列出要挂哪些 */
-export const RIDER_ACCESSORIES = ["turban", "helmet", "visor", "cap", "plume", "mustache", "beard", "bindi", "sash"] as const;
+export const RIDER_ACCESSORIES = [
+  "turban", "helmet", "visor", "cap", "plume", "mustache", "beard", "bindi", "sash",
+  "curlyHair", "seat", "steeringWheel",
+] as const;
 export type RiderAccessory = (typeof RIDER_ACCESSORIES)[number];
+/**
+ * 驭象师脸部材质（可选）：calm 为常态；tense / furious 在连点加速强度升高时依次切换
+ * （未提供的档位沿用上一档；整体缺省则头部用 skin 材质）。
+ */
+export interface RiderFaceSpec {
+  calm: MaterialSpec;
+  tense?: MaterialSpec;
+  furious?: MaterialSpec;
+}
 export interface RiderOutfit {
   materials: Record<RiderSlot, MaterialSpec>;
   accessories: RiderAccessory[];
+  face?: RiderFaceSpec;
 }
 
 // ---------- 赛道环境 ----------
 /** 装饰物由 three/props.ts 的装饰库实现；风格包只声明种类、数量、分布与材质 */
-export const PROP_KINDS = ["palm", "roundTree", "bush", "rock", "temple", "torana", "bunting", "lantern", "lamppost", "flag", "mountain"] as const;
+export const PROP_KINDS = [
+  "palm", "roundTree", "bush", "rock", "temple", "torana", "bunting", "lantern", "lamppost", "flag", "mountain",
+  "hill", "highwayLamp", "roadSign", "boxCar", "boxTruck",
+] as const;
 export type PropKind = (typeof PROP_KINDS)[number];
 export interface PropSpec {
   kind: PropKind;
@@ -155,6 +185,7 @@ export type SfxId = (typeof SFX_IDS)[number];
 export const SYNTH_PRESETS = [
   "whipCrack", "dholHit", "tablaTak", "thud", "brassFanfare", "shehnaiFanfare", "boom", "slideWhistle",
   "trumpetTrunk", "tick", "goBlast", "click",
+  "hornHonk", "engineRev", "tireScreech", "crash",
 ] as const;
 export type SynthPreset = (typeof SYNTH_PRESETS)[number];
 export interface SfxSpec {
@@ -173,6 +204,8 @@ export interface StylePack {
   /** 四位玩家的身份强调色 */
   playerColors: [string, string, string, string];
   elephant: ElephantSkin;
+  /** 大象附件（车灯 / 后视镜 / 车牌 / 轮胎脚 / 保险杠……），缺省为空 */
+  elephantAccessories?: ElephantAccessorySpec[];
   rider: RiderOutfit;
   environment: EnvironmentSpec;
   birth: BirthStageSpec;

@@ -5,11 +5,12 @@ import { specUsesPlayer, recipeKey } from "../src/style/materials";
 import bollywood from "../src/style/packs/bollywood/index";
 
 describe("风格包注册表与校验", () => {
-  it("自动发现至少两套风格包，且默认为宝莱坞", () => {
+  it("自动发现至少三套风格包，且默认为宝莱坞", () => {
     const ids = listPacks().map(p => p.id);
-    expect(ids.length).toBeGreaterThanOrEqual(2);
+    expect(ids.length).toBeGreaterThanOrEqual(3);
     expect(ids).toContain("bollywood");
     expect(ids).toContain("classic");
+    expect(ids).toContain("road-rage");
     expect(DEFAULT_STYLE_ID).toBe("bollywood");
     expect(listPacks()[0].id).toBe(DEFAULT_STYLE_ID);
   });
@@ -33,6 +34,8 @@ describe("风格包注册表与校验", () => {
     bad.environment.props.push({ kind: "spaceship", count: 1 });
     bad.rider.accessories.push("crown");
     bad.sfx.whip = { synth: "laser" };
+    bad.elephantAccessories = [{ kind: "spoiler" }, { kind: "plate", materials: { plate: {} } }];
+    bad.rider.face = { calm: { color: "#000" }, furious: {} };
     const errs = validatePack(bad);
     expect(errs.some(e => e.includes("id"))).toBe(true);
     expect(errs.some(e => e.includes("elephant.trunk"))).toBe(true);
@@ -40,6 +43,23 @@ describe("风格包注册表与校验", () => {
     expect(errs.some(e => e.includes("spaceship"))).toBe(true);
     expect(errs.some(e => e.includes("crown"))).toBe(true);
     expect(errs.some(e => e.includes("laser"))).toBe(true);
+    expect(errs.some(e => e.includes("spoiler"))).toBe(true);
+    expect(errs.some(e => e.includes("elephantAccessories.plate.plate"))).toBe(true);
+    expect(errs.some(e => e.includes("rider.face.furious"))).toBe(true);
+  });
+
+  it("腋毛攻击风格包：大象车件、驭象师表情档位与公路装饰物都在契约允许的范围内", () => {
+    const p = getPack("road-rage");
+    expect(p.id).toBe("road-rage");
+    expect(p.elephantAccessories?.map(a => a.kind)).toEqual(
+      expect.arrayContaining(["headlights", "taillights", "mirrors", "plate", "hubcaps", "bumper"]),
+    );
+    expect(p.rider.accessories).toEqual(expect.arrayContaining(["curlyHair", "seat", "steeringWheel"]));
+    expect(p.rider.face?.calm.texture?.kind).toBe("procedural");
+    expect(p.rider.face?.furious).toBeDefined();
+    expect(p.environment.props.map(x => x.kind)).toEqual(expect.arrayContaining(["hill", "highwayLamp", "roadSign", "boxCar", "boxTruck"]));
+    expect(p.music.race.file).toBe("/styles/road-rage/music/race.mp3");
+    expect(p.sfx.whip?.synth).toBe("hornHonk");
   });
 
   it("$player 占位识别：颜色或程序化配方里出现即视为玩家相关材质", () => {

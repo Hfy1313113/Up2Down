@@ -181,6 +181,125 @@ export function paintRecipe(ctx: CanvasRenderingContext2D, size: number, recipe:
       for (let i = 0; i < n; i++) ctx.fillRect(i * w + w * 0.2, size * 0.7, w * 0.6, size * 0.3);
       break;
     }
+    case "road": {
+      // 沥青路面：画布 x 为行车方向（跑道平面的 u 轴），实线路缘在上下边，车道间虚线水平排布；
+      // 细碎白点模拟沥青颗粒
+      ctx.fillStyle = sub(recipe.base);
+      ctx.fillRect(0, 0, size, size);
+      ctx.fillStyle = "#ffffff";
+      for (let i = 0; i < size * 1.2; i++) {
+        ctx.globalAlpha = rand() * 0.07;
+        ctx.fillRect(rand() * size, rand() * size, 2, 2);
+      }
+      ctx.globalAlpha = 1;
+      const lanes = Math.max(1, Math.round(recipe.lanes ?? 2));
+      const lw = Math.max(2, size * 0.022);
+      ctx.fillStyle = sub(recipe.edge ?? recipe.line);
+      ctx.fillRect(0, size * 0.035, size, lw);
+      ctx.fillRect(0, size * 0.965 - lw, size, lw);
+      ctx.fillStyle = sub(recipe.line);
+      const dash = Math.min(0.9, Math.max(0.1, recipe.dash ?? 0.5));
+      for (let k = 1; k < lanes; k++) {
+        ctx.fillRect(size * (0.5 - dash / 2), (size * k) / lanes - lw / 2, size * dash, lw);
+      }
+      break;
+    }
+    case "face": {
+      // 卡通脸贴在球面 u=0.5（+x，驭象师正前方）附近；画布上方对应头顶。
+      // 五官集中在横向 ±7.5%（球面约 ±27°）、纵向 40%~66%（眉在赤道上方、嘴在赤道下方）
+      ctx.fillStyle = sub(recipe.skin);
+      ctx.fillRect(0, 0, size, size);
+      const ink = sub(recipe.ink);
+      const s = size, cx = s * 0.5;
+      const eyeDx = s * 0.075;
+      const browY = s * 0.40, eyeY = s * 0.47, noseY = s * 0.555, mouthY = s * 0.655;
+      ctx.strokeStyle = ink;
+      ctx.fillStyle = ink;
+      ctx.lineCap = "round";
+      for (const sd of [-1, 1]) {
+        const x = cx + sd * eyeDx;
+        ctx.beginPath();
+        if (recipe.mood === "calm") {
+          // 平眉微弯
+          ctx.lineWidth = s * 0.016;
+          ctx.moveTo(x - sd * s * 0.03, browY + s * 0.004);
+          ctx.quadraticCurveTo(x, browY - s * 0.012, x + sd * s * 0.03, browY + s * 0.002);
+        } else {
+          // 怒视：眉头压向鼻梁、眉尾上扬
+          ctx.lineWidth = recipe.mood === "grit" ? s * 0.03 : s * 0.022;
+          ctx.moveTo(x - sd * s * 0.035, browY - s * 0.022);
+          ctx.lineTo(x + sd * s * 0.03, browY + s * 0.016);
+        }
+        ctx.stroke();
+      }
+      // 小黑点眼
+      for (const sd of [-1, 1]) {
+        ctx.beginPath();
+        ctx.ellipse(cx + sd * eyeDx, eyeY, s * 0.011, s * 0.016, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // 鼻子
+      ctx.lineWidth = s * 0.012;
+      ctx.beginPath();
+      ctx.moveTo(cx - s * 0.03, noseY);
+      ctx.quadraticCurveTo(cx, noseY + s * 0.02, cx + s * 0.03, noseY);
+      ctx.stroke();
+      // 嘴
+      if (recipe.mood === "grit") {
+        // 咬牙：白牙块 + 中缝
+        ctx.fillStyle = "#ffffff";
+        ctx.beginPath();
+        ctx.roundRect(cx - s * 0.075, mouthY - s * 0.028, s * 0.15, s * 0.056, s * 0.02);
+        ctx.fill();
+        ctx.lineWidth = s * 0.01;
+        ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(cx - s * 0.075, mouthY); ctx.lineTo(cx + s * 0.075, mouthY); ctx.stroke();
+      } else if (recipe.mood === "angry") {
+        ctx.fillStyle = sub(recipe.mouth ?? "#7a1b12");
+        ctx.beginPath();
+        ctx.ellipse(cx, mouthY, s * 0.05, s * 0.022, 0, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        // 常态：嘴角向下的「不爽」弧
+        ctx.lineWidth = s * 0.012;
+        ctx.beginPath();
+        ctx.moveTo(cx - s * 0.05, mouthY + s * 0.012);
+        ctx.quadraticCurveTo(cx, mouthY - s * 0.02, cx + s * 0.05, mouthY + s * 0.012);
+        ctx.stroke();
+      }
+      // 汗滴（给定颜色即画在右额）
+      if (recipe.sweat) {
+        ctx.fillStyle = sub(recipe.sweat);
+        const sx = cx + s * 0.14, sy = s * 0.44;
+        ctx.beginPath();
+        ctx.moveTo(sx, sy - s * 0.03);
+        ctx.quadraticCurveTo(sx + s * 0.025, sy + s * 0.012, sx, sy + s * 0.022);
+        ctx.quadraticCurveTo(sx - s * 0.025, sy + s * 0.012, sx, sy - s * 0.03);
+        ctx.fill();
+      }
+      break;
+    }
+    case "label": {
+      // 圆牌（圆柱端面 UV 为整幅贴图）或矩形牌：底色 + 环/边框 + 居中文字
+      const circle = (recipe.shape ?? "circle") === "circle";
+      ctx.fillStyle = sub(recipe.base);
+      if (circle) { ctx.beginPath(); ctx.arc(size / 2, size / 2, size * 0.5, 0, Math.PI * 2); ctx.fill(); }
+      else ctx.fillRect(0, 0, size, size);
+      if (recipe.ring) {
+        ctx.strokeStyle = sub(recipe.ring);
+        ctx.lineWidth = size * 0.09;
+        if (circle) { ctx.beginPath(); ctx.arc(size / 2, size / 2, size * 0.44, 0, Math.PI * 2); ctx.stroke(); }
+        else ctx.strokeRect(size * 0.045, size * 0.045, size * 0.91, size * 0.91);
+      }
+      ctx.fillStyle = sub(recipe.ink);
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      const text = recipe.text;
+      const fontPx = Math.min(size * 0.5, (size * (circle ? 0.6 : 0.86)) / Math.max(1, text.length * 0.62));
+      ctx.font = `bold ${fontPx}px sans-serif`;
+      ctx.fillText(text, size / 2, size / 2 + fontPx * 0.05);
+      break;
+    }
   }
 }
 
