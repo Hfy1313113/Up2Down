@@ -34,12 +34,6 @@
 - `**/.env.example`（若存在）
 - 相关脚本
 
-如任务涉及容器化部署，还必须阅读：
-
-- `**/Dockerfile`
-- `**/docker-compose.yml`
-- `**/.dockerignore`
-
 ### 1.3 阅读后的执行要求
 
 Agent 必须把文档中确认的项目结构、API 约定、模块边界、环境变量和已有工作流作为实现约束。不得凭记忆、猜测或通用经验覆盖本项目文档。
@@ -75,6 +69,7 @@ git commit -m "<clear local commit message>"
 
 执行原则：
 
+- ！！！确保直接使用用户个人的github账号记录作为唯一贡献者进行署名，**禁止将claude或其他coding agent列为co-author或任何其他形式的agent署名**！！！
 - 一个逻辑变更一个提交。
 - 文档整理、结构调整、功能修改、修复问题应尽量分开提交。
 - 提交信息必须说明真实意图，不允许使用 `update`、`fix`、`misc` 这类无法审查的消息。
