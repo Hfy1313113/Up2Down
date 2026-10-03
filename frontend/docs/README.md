@@ -82,7 +82,7 @@ src/
    - `birth`：`disc`、`ring`、`backdrop`（CSS background）、`lights`
    - `ui`：`accent, accentHover, ink, paper, bg, bgPattern, go, goHover, canvasPaper, canvasGrid`
    - `music`：`race` 必填，`menu` / `birth` 可选；每条 `{ file?, procedural?, volume?, fadeSec? }`，至少有一个来源；`fadeSec` 为文件曲目每遍结尾渐出与第二遍起渐入的秒数（默认 2.5）
-   - `sfx`（`SFX_IDS`）：`whip, impact, fanfare, blast, buckedOff, countdown, go, uiTap`，每项 `{ synth?: 预设名, file?, gain? }`；预设（`SYNTH_PRESETS`）：`whipCrack, dholHit, tablaTak, thud, brassFanfare, shehnaiFanfare, boom, slideWhistle, trumpetTrunk, tick, goBlast, click, hornHonk, engineRev, tireScreech, crash`
+   - `sfx`（`SFX_IDS`）：`whip, trumpet, impact, fanfare, blast, buckedOff, countdown, go, uiTap`，每项 `{ synth?: 预设名, file?, gain? }`（给了 `file` 仍建议保留 `synth` 作回落；文件放 `public/styles/<id>/sfx/` 并在旁边的 README 记录来源与许可）；预设（`SYNTH_PRESETS`）：`whipCrack, dholHit, tablaTak, thud, brassFanfare, shehnaiFanfare, boom, slideWhistle, trumpetTrunk, tick, goBlast, click, hornHonk, engineRev, tireScreech, crash`
 3. 材质描述 `MaterialSpec`：`color`（可写 `"$player"` 取玩家身份色）、`texture`（`{kind:"image", url}` 或 `{kind:"procedural", recipe}`）、`repeat`、`roughness`、`metalness`、`emissive`、`unlit`、`opacity`。
    程序化配方 `recipe.type`：`solid, stripes, spots, noise, wrinkle, checker, paisley, mandala, grid, fringe, road, face, label`。
    `road`（沥青路面：u 为行车方向，路缘实线 + `lanes` 车道间虚线）、`face`（卡通脸贴在头球正前方 +x，`mood` ∈ `calm / angry / grit`，`variant` ∈ 0 闷闷 / 1 八字胡 / 2 乐呵 / 3 困倦 或 `"$player"` 按玩家序号轮选，`skin` 可给数组按序号取色，可加 `sweat` 汗滴）、`label`（圆形或矩形标牌：底色 + 环 + 居中文字，用于限速牌与车牌）。

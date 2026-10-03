@@ -71,6 +71,8 @@ lobby ──房主 startGame()──► draw ──三部位画完 prepareBirth(
   比赛未结束则再起一遍并从第二遍起开头渐入；`stop(fade)` 淡出，`duck(level)` 压低（出局 0.45、结算 0.35）。
 - **音效**（`sfx.ts`）：`setSfxPack(pack)` 后 `playSfx(id)` 按风格包事件表选预设或文件，未配置则用默认预设；`playPreset(id)` 直接播放预设（如连点达到 1.4 倍时的象鸣 `trumpetTrunk`）。
   预设库除鞭响 / 鼓 / 号角 / 滑哨 / 象鸣 / 滴答 / 起跑 / 点击外，还有汽车主题的 `hornHonk`（双音喇叭）、`engineRev`（地板油起步 + 打滑）、`tireScreech`（轮胎尖啸）、`crash`（追尾闷响 + 金属碎响）。
+  `hornHonk` 是**可持续**预设：模块级只保留一只喇叭，单按按住 0.16s 后 80ms 收尾；若上一声收尾后 0.12s 内再按（连点间隔过近），不重触发而是取消收尾、按住并顺延，于是连点越密鸣笛越长，停手才收尾。
+  猛抽时的象鸣现在是风格包事件 `trumpet`（`RaceScreen` 用 `playSfx("trumpet", 0.7)` 节流 1.6s 触发），默认预设 `trumpetTrunk`，宝莱坞替换为公版录音文件；`preloadStyle` 会连同音效文件一起预载（`preloadSfxFiles`）。
 - **阶段联动**：`App.tsx` 在 `/play` 的非赛跑阶段播放 `menu`（具象化阶段优先 `birth`），离开 `/play` 停止；`RaceScreen` 在倒数「3」出现时播放 `race`，倒数 / 起跑 / 挥鞭 / 出局 / 结算各触发对应音效。
 
 ## 渲染层（`src/three/` 与 UI 呈现）
