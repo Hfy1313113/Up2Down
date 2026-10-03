@@ -1,4 +1,4 @@
-// types.ts —— 马模型的 TypeScript 类型定义（对应 recognize.js 的返回值）
+// types.ts —— 大象模型的 TypeScript 类型定义（对应 recognize.ts 的返回值）
 export type Vec2 = [number, number];
 
 export interface Stroke {
@@ -40,8 +40,10 @@ export interface HeadModel {
   /** 头部朝向单位向量（本地坐标 y 向上）；缺省视为朝右上 */
   dirX?: number;
   dirY?: number;
-  /** 识别到的耳尖（本地坐标，最多 2 个；缺省/空 = 使用默认双耳） */
+  /** 识别到的耳尖（本地坐标，最多 2 个；缺省/空 = 使用默认大扇耳） */
   earTips?: Vec2[];
+  /** 玩家手绘的象鼻中心线（本地坐标，鼻根→鼻尖，约 8 点）；缺省 = 程序化象鼻 */
+  trunk?: Vec2[];
   /** 头部是否来自玩家手绘 */
   found?: boolean;
 }

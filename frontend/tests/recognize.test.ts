@@ -113,3 +113,37 @@ describe("Recognize.analyzeParts", () => {
     for (const l of model.legs) expect(l.synthesized).toBe(true);
   });
 });
+
+describe("Recognize.analyzeParts · 象鼻", () => {
+  it("合成数据的下垂长笔画被识别为象鼻：8 点曲线，鼻根靠近头心、鼻尖在头心下方", () => {
+    const model = Recognize.analyzeParts(synthParts());
+    const H = model.head;
+    expect(H.trunk).toBeDefined();
+    expect(H.trunk!).toHaveLength(8);
+    const root = H.trunk![0], tip = H.trunk![7];
+    const dRoot = Math.hypot(root[0] - H.x, root[1] - H.y);
+    const dTip = Math.hypot(tip[0] - H.x, tip[1] - H.y);
+    expect(dRoot).toBeLessThan(dTip);
+    expect(tip[1]).toBeLessThan(H.y);
+    // 象鼻不应被误判成耳尖，双耳仍在
+    expect(H.earTips).toHaveLength(2);
+  });
+
+  it("没画象鼻（只有脖子+头+耳）时 trunk 缺省，脖子与朝向识别不受影响", () => {
+    const parts = synthParts();
+    parts.head = parts.head!.slice(0, 4);
+    const model = Recognize.analyzeParts(parts);
+    expect(model.head.trunk).toBeUndefined();
+    expect(model.head.found).toBe(true);
+    expect(model.head.dirX!).toBeGreaterThan(0.3);
+    expect(model.head.earTips).toHaveLength(2);
+  });
+
+  it("单笔画头（无法分离象鼻）不会把唯一的头轮廓当作象鼻", () => {
+    const parts = synthParts();
+    parts.head = [parts.head![0], parts.head![1]];
+    const model = Recognize.analyzeParts(parts);
+    expect(model.head.trunk).toBeUndefined();
+    expect(model.head.found).toBe(true);
+  });
+});

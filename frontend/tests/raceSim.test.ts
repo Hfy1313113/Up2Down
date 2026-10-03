@@ -31,7 +31,7 @@ describe("raceSim 位移积分", () => {
     });
   });
 
-  it("积分 = Σ speed·dt：匀速马 x≈speed·time", () => {
+  it("积分 = Σ speed·dt：匀速象 x≈speed·time", () => {
     const s = simulate(entries, 600, 1 / 60);   // 10 秒
     for (const r of s.runners) {
       expect(r.x).toBeCloseTo(r.speed * s.time, 3);
@@ -74,7 +74,7 @@ describe("raceSim 位移积分", () => {
     expect(boosted.boost).toBeGreaterThan(1.0);
     expect(boosted.boost).toBeLessThanOrEqual(MAX_BOOST); // 不超过 MAX_BOOST 上限
 
-    // 跑一小段：连点的马比没连点的马跑得更快
+    // 跑一小段：连点的象比没连点的象跑得更快
     const dt = 1 / 60;
     for (let i = 0; i < 60; i++) {
       s = updateRace(s, dt);
@@ -85,7 +85,7 @@ describe("raceSim 位移积分", () => {
 
   it("物理交互：超车追尾创飞与截停逻辑生效", () => {
     let s = createRace(entries);
-    // 将两匹马强行拉到同一横向赛道附近，后车具有极高初速
+    // 将两头象强行拉到同一横向赛道附近，后车具有极高初速
     s.runners[0].x = 100;
     s.runners[0].z = 0;
     s.runners[0].speed = 180;
@@ -124,7 +124,7 @@ describe("raceSim 位移积分", () => {
     expect(a.some(v => v !== 0)).toBe(true);
   });
 
-  it("加速上限过载警告与颠飞下马：维持上限持续超过 3 秒导致坠马出局", () => {
+  it("加速上限过载警告与甩下象背：维持上限持续超过 3 秒导致出局", () => {
     let s = createRace(entries);
     const dt = 1 / 60;
 
@@ -152,7 +152,7 @@ describe("raceSim 位移积分", () => {
     expect(rA3s.buckedOff).toBe(true);
     expect(rA3s.failed).toBe(true);
     expect(rA3s.effectiveSpeed).toBe(0);
-    expect(rA3s.interactionText).toContain("颠飞下马");
+    expect(rA3s.interactionText).toContain("甩下象背");
 
     // 颠飞者在排名中被置底
     const rank = ranking(s);

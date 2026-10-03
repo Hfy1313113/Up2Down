@@ -8,7 +8,7 @@ import type { ElephantModel, Metrics } from "./types";
 
 const SPEED_K = 0.62;  // 全局速度系数
 
-// 由识别出的马模型计算速度与步频（确定性：所有客户端结果一致）
+// 由识别出的大象模型计算速度与步频（确定性：所有客户端结果一致）
 export function computeMetrics(model: ElephantModel): Metrics {
   let vSum = 0, cSum = 0;
   for (const leg of model.legs) {

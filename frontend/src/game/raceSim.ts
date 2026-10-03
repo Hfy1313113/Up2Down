@@ -1,5 +1,5 @@
 // raceSim.ts —— 赛跑模拟的纯逻辑核心（可单测，无 DOM 依赖）：
-// 每匹马速度由 computeMetrics 决定，位移确定性积分；名次按冲线时间/距离排名。
+// 每头大象速度由 computeMetrics 决定，位移确定性积分；名次按冲线时间/距离排名。
 // 支持用户连点屏幕加速（带上限）、物理交互（拌腿、冲撞、美式截停、创飞）。
 import { computeMetrics } from "./metrics";
 import type { ElephantModel } from "./types";
@@ -12,7 +12,7 @@ export const BOOST_DECAY = 1.8;           // 连点增益每秒自然衰减
 export const TAP_IMPULSE = 0.35;          // 单次点击激发的加速脉冲
 export const MAX_TAP_INTENSITY = 2.5;     // 连点强度上限
 export const DANGER_BOOST_THRESHOLD = 1.55; // 接近或等于加速上限的预警阈值
-export const BUCK_OFF_TIME = 3.0;          // 维持在上限连续超过 3 秒颠飞下马
+export const BUCK_OFF_TIME = 3.0;          // 维持在上限连续超过 3 秒被甩下象背
 
 export type InteractionType = "bump" | "trip" | "pit" | "launch";
 
@@ -37,12 +37,12 @@ export interface Runner {
   tapIntensity: number;     // 连点激烈程度 (0 ~ MAX_TAP_INTENSITY)
   whipIntensity: number;    // 挥鞭强度 (0 ~ 1.0)
   dangerDuration: number;   // 维持在加速上限附近的连续时长（秒）
-  buckedOff: boolean;       // 是否被马儿颠飞下马
+  buckedOff: boolean;       // 是否被大象甩下象背
   failed: boolean;          // 该玩家是否已游戏失败
-  riderFlyX: number;        // 骑手被颠飞脱离后的相对纵向位移
-  riderFlyY: number;        // 骑手被颠飞脱离后的相对垂直位移
-  riderFlyZ: number;        // 骑手被颠飞脱离后的相对横向位移
-  riderFlyRot: number;      // 骑手空中翻滚角
+  riderFlyX: number;        // 驭象师被颠飞脱离后的相对纵向位移
+  riderFlyY: number;        // 驭象师被颠飞脱离后的相对垂直位移
+  riderFlyZ: number;        // 驭象师被颠飞脱离后的相对横向位移
+  riderFlyRot: number;      // 驭象师空中翻滚角
   stumbleTimer: number;     // 拌腿硬直剩余时间
   spinTimer: number;        // 美式截停打转硬直
   launchedTimer: number;    // 被创飞浮空状态
@@ -124,7 +124,7 @@ export function applyTapBoost(state: RaceState, runnerId: string): RaceState {
   return { ...state, runners };
 }
 
-// 网络同步其他玩家的 boost 与颠飞状态
+// 网络同步其他玩家的 boost 与出局状态
 export function setRunnerBoost(
   state: RaceState,
   runnerId: string,
@@ -167,7 +167,7 @@ export function setRunnerBuckedOff(state: RaceState, runnerId: string): RaceStat
       whipIntensity: 0,
       dangerDuration: 0,
       effectiveSpeed: 0,
-      interactionText: "颠飞下马！💥",
+      interactionText: "甩下象背！💥",
       interactionTimer: 4.5,
       riderFlyY: 0.5,
       riderFlyRot: 0.5,
@@ -187,7 +187,7 @@ export function updateRace(state: RaceState, dt: number): RaceState {
   let runners = state.runners.map(r => {
     if (r.finished) return r;
 
-    // 若已经颠飞坠马失败，则马匹迅速减速滑停，骑手继续翻滚抛飞升天
+    // 若已经被甩下象背失败，则大象迅速减速滑停，驭象师继续翻滚抛飞升天
     if (r.buckedOff || r.failed) {
       const riderFlyY = Math.min(35, r.riderFlyY + (20 - r.riderFlyY * 0.3) * dt);
       const riderFlyX = r.riderFlyX + (12 + r.riderFlyX * 0.3) * dt;
@@ -197,7 +197,7 @@ export function updateRace(state: RaceState, dt: number): RaceState {
       const phase = (r.phase + (effectiveSpeed / Math.max(1, r.speed)) * (dt / r.period)) % 1;
       const interactionTimer = Math.max(0, r.interactionTimer - dt);
       let interactionText = r.interactionText;
-      if (interactionTimer > 3.0) interactionText = "颠飞下马！💥";
+      if (interactionTimer > 3.0) interactionText = "甩下象背！💥";
       else if (interactionTimer > 1.5) interactionText = "大风车翻滚！🌪️";
       else if (interactionTimer > 0) interactionText = "化作流星！✨";
       else interactionText = null;
@@ -228,7 +228,7 @@ export function updateRace(state: RaceState, dt: number): RaceState {
     const boost = Math.max(r.boost > 1.0 ? Math.max(1.0, r.boost - (BOOST_DECAY * 0.25) * dt) : 1.0, calculatedBoost);
     const whipIntensity = Math.max(0, r.whipIntensity - BOOST_DECAY * 0.8 * dt);
 
-    // 维持在接近或等于加速上限的连续时长检测 (≥ 3 秒则颠飞下马出局)
+    // 维持在接近或等于加速上限的连续时长检测 (≥ 3 秒则被甩下象背出局)
     let dangerDuration = r.dangerDuration;
     let buckedOff = false;
     let failed = false;
@@ -249,7 +249,7 @@ export function updateRace(state: RaceState, dt: number): RaceState {
       if (dangerDuration >= BUCK_OFF_TIME) {
         buckedOff = true;
         failed = true;
-        interactionText = "颠飞下马！💥";
+        interactionText = "甩下象背！💥";
         riderFlyY = 0.6;
         riderFlyRot = 0.6;
       }
@@ -340,7 +340,7 @@ export function updateRace(state: RaceState, dt: number): RaceState {
     };
   });
 
-  // 2. 两两马匹间的物理交互检测（冲撞、拌腿、美式截停、创飞）
+  // 2. 两两大象间的物理交互检测（冲撞、拌腿、美式截停、创飞）
   const len = runners.length;
   for (let i = 0; i < len; i++) {
     for (let j = i + 1; j < len; j++) {

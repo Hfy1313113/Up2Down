@@ -1,4 +1,4 @@
-/* recognize.ts —— 马形识别：从手绘笔画中定位躯干与四条腿，
+/* recognize.ts —— 大象形体识别：从手绘笔画中定位躯干与四条腿，
    并把每条腿转化为「髋关节 + 膝关节」双关节连杆模型。
    纯函数实现，无 DOM 依赖。 */
 import type { ElephantModel, PartStrokes, RawStroke, Stroke, Vec2 } from "./types";
@@ -103,7 +103,7 @@ function pcaAxis(pts: Vec2[]) {
 
 // ---------- 主入口 ----------
 // rawStrokes: [{points: [[x,y],...]}, ...]，画布逻辑坐标（y 向下）
-// 返回标准化的马模型（本地坐标：x 向右=马头方向，y 向下，脚底 y=0，躯干中心在 y=-bodyH）
+// 返回标准化的大象模型（本地坐标：x 向右=象头方向，y 向下，脚底 y=0，躯干中心在 y=-bodyH）
 function analyze(rawStrokes: RawStroke[]): ElephantModel {
   let strokes: Stroke[] = rawStrokes
     .map(s => ({ points: (s.points || []).filter(p => isFinite(p[0]) && isFinite(p[1])) as Vec2[] }))
@@ -312,7 +312,7 @@ function analyze(rawStrokes: RawStroke[]): ElephantModel {
     quality: legs.reduce((a, l) => a + l.quality, 0) / legs.length,
   };
 
-  // 后腿髋关节略高（马的后躯更高）
+  // 后腿髋关节略高（大象后躯略抬，与躯干前倾的步态姿势相配）
   model.legs[0].hip[1] += model.torso.thick * 0.10;
   model.legs[1].hip[1] += model.torso.thick * 0.10;
   return model;
@@ -351,22 +351,46 @@ interface HeadDetail {
   size: number;
   dir: Vec2;        // 头朝向单位向量（画布坐标）
   earTips: Vec2[];  // 耳尖（画布坐标）
+  trunk: Vec2[] | null; // 象鼻中心线：鼻根→鼻尖（画布坐标，8 点）
 }
 
 function analyzeHead(strokes: Stroke[], anchor: Vec2): HeadDetail | null {
   if (!strokes.length) return null;
 
-  // 1) 离躯干前锚点最近的点所在笔画 = 脖子笔画
+  // 1) 端点离躯干前锚点最近的笔画 = 脖子笔画。
+  //    脖子根在躯干前缘，象鼻尖则垂在锚点前方偏下：对「前方且更低」的端点加罚，避免把象鼻当脖子。
   let neckStroke = strokes[0], bestD = Infinity;
   for (const s of strokes) {
-    for (const p of s.points) {
-      const d = Math.hypot(p[0] - anchor[0], p[1] - anchor[1]);
+    for (const p of [s.points[0], s.points[s.points.length - 1]]) {
+      const dx = p[0] - anchor[0], dy = p[1] - anchor[1];
+      const d = Math.hypot(dx, dy) + 1.2 * Math.max(0, dx) + 0.6 * Math.max(0, dy);
       if (d < bestD) { bestD = d; neckStroke = s; }
     }
   }
-  const others = strokes.filter(s => s !== neckStroke);
+  const allOthers = strokes.filter(s => s !== neckStroke);
   const pts = neckStroke.points;
   const first = pts[0], last = pts[pts.length - 1];
+
+  // 1.5) 象鼻：其它笔画中「最低点明显低于头部点云质心」且足够长的一条（像尾巴一样是附加细节，
+  //      没画就回落到程序化象鼻）。只在至少还有一笔画头时才分离，避免把唯一的头轮廓当成鼻子。
+  let trunkStroke: Stroke | null = null;
+  if (allOthers.length >= 2) {
+    const gb = strokeBBox(allOthers.flatMap(s => s.points));
+    const Hh = Math.max(gb.h, 20);
+    let bestDrop = 0;
+    for (const s of allOthers) {
+      const b = strokeBBox(s.points);
+      // 该笔画最低点比「其余所有头部笔画」的最低点还要低多少
+      let othersBottom = -Infinity;
+      for (const o of allOthers) if (o !== s) othersBottom = Math.max(othersBottom, strokeBBox(o.points).y1);
+      const extra = b.y1 - othersBottom;
+      // 象鼻：细长下垂（高宽比大且明显低于头部）或者下探极深；圆形头轮廓与短耳不满足
+      const hanging = b.h > b.w * 1.3 && extra > Hh * 0.25;
+      const deep = extra > Hh * 0.5;
+      if ((hanging || deep) && arcLength(s.points) > Hh * 0.5 && extra > bestDrop) { bestDrop = extra; trunkStroke = s; }
+    }
+  }
+  const others = trunkStroke ? allOthers.filter(s => s !== trunkStroke) : allOthers;
 
   // 2) 判断脖子笔画哪端靠头：用其它笔画质心；单笔画时用「离锚点更远的那端」
   let headSide: Vec2;
@@ -417,6 +441,7 @@ function analyzeHead(strokes: Stroke[], anchor: Vec2): HeadDetail | null {
     earTips.push(p);
   };
   for (const s of strokes) {
+    if (s === trunkStroke) continue;
     const len = arcLength(s.points);
     if (len < size * 1.2 && s.points.length >= 2) {
       let top = s.points[0];
@@ -434,7 +459,16 @@ function analyzeHead(strokes: Stroke[], anchor: Vec2): HeadDetail | null {
     if (earTips.length >= 2) break;
   }
 
-  return { neckBase, neckEnd, cx, cy, size, dir: [dx, dy], earTips: earTips.slice(0, 2) };
+  // 6) 象鼻曲线：鼻根 = 离头心更近的一端，重采样为 8 点
+  let trunk: Vec2[] | null = null;
+  if (trunkStroke) {
+    const tp = trunkStroke.points;
+    const a = tp[0], z = tp[tp.length - 1];
+    const ordered = Math.hypot(a[0] - cx, a[1] - cy) <= Math.hypot(z[0] - cx, z[1] - cy) ? tp : [...tp].reverse();
+    trunk = resample(ordered, 8);
+  }
+
+  return { neckBase, neckEnd, cx, cy, size, dir: [dx, dy], earTips: earTips.slice(0, 2), trunk };
 }
 
 // ---------- 屁股分析 ----------
@@ -593,6 +627,7 @@ function analyzeParts(parts: PartStrokes): ElephantModel {
     neckBaseY: head ? head.neckBase[1] : undefined,
     headDir: head ? head.dir : undefined,
     headEars: head ? head.earTips : undefined,
+    headTrunk: head ? head.trunk : undefined,
     headFound: !!head,
     tailCurve: butt.tailCurve,
     tailFound: buttStrokes.length > 0,
@@ -615,6 +650,7 @@ interface NormalizeRaw {
   neckBaseY?: number;
   headDir?: Vec2;
   headEars?: Vec2[];
+  headTrunk?: Vec2[] | null;
   headFound?: boolean;
   tailCurve?: Vec2[] | null;
   tailFound?: boolean;
@@ -677,6 +713,10 @@ function normalize(raw: NormalizeRaw): ElephantModel {
           const lp = toLocal(e);
           return [lp[0], lp[1] + headSize * 0.35] as Vec2;
         }),
+        // 象鼻中心线（本地坐标，鼻根→鼻尖），与头心同样做纵向偏移
+        trunk: raw.headTrunk && raw.headTrunk.length >= 2
+          ? raw.headTrunk.map(p => { const lp = toLocal(p); return [lp[0], lp[1] + headSize * 0.35] as Vec2; })
+          : undefined,
         found: raw.headFound ?? false,
       };
     })(),
