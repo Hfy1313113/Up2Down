@@ -113,11 +113,16 @@ export class Room {
 
       switch (msg.t) {
         case "join": {
-          if (rs.players.size >= 4) { send(ws, { t: "error", msg: "房间已满" }); return; }
+          if (rs.players.size >= 4) {
+            // 满员：回 error 后主动关闭连接（1008 = policy violation），客户端据此立即失败
+            send(ws, { t: "error", msg: "房间已满", for: "join" });
+            try { ws.close(1008, "room full"); } catch { /* closed */ }
+            return;
+          }
           pid = "p" + (++rs.seq);
           const player: Player = {
             pid, name: String(msg.name || "玩家").slice(0, 24),
-            ws, done: false, strokes: null,
+            ws, done: false,
           };
           rs.players.set(pid, player);
           if (!rs.hostId) rs.hostId = pid;

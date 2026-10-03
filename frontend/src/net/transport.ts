@@ -98,6 +98,16 @@ class P2PTransport implements Transport {
           this.startPing();
           if (!settled) { settled = true; resolve(); }
         }
+        // 加入被拒（如房间已满）：服务端回 error 且不会再发 joined，直接失败并主动关闭，
+        // 避免 Promise 悬空导致界面停在"正在连接…"
+        if (msg.t === "error" && !settled) {
+          settled = true;
+          this.closedByUser = true;
+          this.ws = null;
+          try { ws.close(); } catch { /* noop */ }
+          reject(new Error(String(msg.msg || "加入房间失败")));
+          return;
+        }
         this.handleServerMessage(msg);
       };
       ws.onerror = () => {

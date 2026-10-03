@@ -55,6 +55,8 @@ export function LobbyScreen() {
     setJoining(true);
     try {
       await join(name.trim() || `骑手${Math.floor(Math.random() * 99)}`, room);
+    } catch {
+      // 错误文案已由 state 层写入 g.error 并在上方展示，这里只需结束 loading
     } finally {
       setJoining(false);
     }
