@@ -1,6 +1,6 @@
 // LobbyScreen.tsx —— 大厅：加入房间（四位数字房间号）、玩家列表（房主标记）、房主开始按钮
 import { useState, useRef } from "react";
-import { useGame, join, startGame } from "../state/game";
+import { useGame, join, startGame, isRoundParticipant } from "../state/game";
 
 function randomFourDigits(): string {
   return String(Math.floor(1000 + Math.random() * 9000));
@@ -15,6 +15,8 @@ export function LobbyScreen() {
 
   const joined = g.players.length > 0;
   const iAmHost = g.host != null && g.host === g.myId;
+  // 对局进行中（服务端 round ≠ idle）：中途加入者在此等待，本局结束后自动进入下一局
+  const roundBusy = g.round !== "idle";
 
   const digits = [room[0] || "", room[1] || "", room[2] || "", room[3] || ""];
 
@@ -145,6 +147,13 @@ export function LobbyScreen() {
               >
                 <span>
                   {p.name}{p.id === g.myId ? "（你）" : ""}
+                  {roundBusy && (
+                    <span className={`ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                      isRoundParticipant(p.id, g) ? "bg-emerald-600 text-white" : "bg-slate-300 text-slate-700"
+                    }`}>
+                      {isRoundParticipant(p.id, g) ? (g.round === "draw" ? "作画中" : "比赛中") : "候场"}
+                    </span>
+                  )}
                 </span>
                 {p.id === g.host && (
                   <span className="bg-[#e2703a] text-white text-[10px] sm:text-xs font-bold px-1.5 py-0.5 rounded">
@@ -154,14 +163,20 @@ export function LobbyScreen() {
               </li>
             ))}
           </ul>
-          <p className="text-slate-500 text-xs sm:text-sm">
-            {iAmHost ? "你是房主，全员就绪后点击起跑发车" : "等待房主开赛…"}
-          </p>
+          {roundBusy ? (
+            <p className="text-amber-700 bg-amber-50 border border-amber-300 rounded-lg px-3 py-1.5 text-xs sm:text-sm font-semibold">
+              本房间对局进行中（{g.round === "draw" ? "作画阶段" : "赛跑阶段"}），你已候场，本局结束后自动进入下一局
+            </p>
+          ) : (
+            <p className="text-slate-500 text-xs sm:text-sm">
+              {iAmHost ? "你是房主，全员就绪后点击起跑发车" : "等待房主开赛…"}
+            </p>
+          )}
           <p className="links text-slate-500 text-[11px] sm:text-xs">
             链路状态：P2P × {g.links.p2p} 直连
             {g.links.relay > 0 ? ` · 兜底中转 × ${g.links.relay}` : ""}
           </p>
-          {iAmHost && (
+          {iAmHost && !roundBusy && (
             <button
               onClick={startGame}
               className="primary w-full py-2.5 sm:py-3 px-4 rounded-lg border-2 border-[#233140] bg-[#2ea043] hover:bg-[#278839] text-white font-bold text-sm sm:text-base shadow-[3px_3px_0_#233140] active:translate-x-0.5 active:translate-y-0.5 transition-all mt-1"

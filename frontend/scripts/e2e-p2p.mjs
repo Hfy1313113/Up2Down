@@ -130,6 +130,24 @@ for (let i = 0; i < N; i++) {
   }
 }
 
+// ---- 中途加入者：开局后第 4 人进房，应在大厅候场，不被拉入本局 ----
+const lateCtx = await browser.newContext({ viewport: { width: 1100, height: 760 } });
+const late = await lateCtx.newPage();
+late.on("pageerror", e => console.log("  [late] pageerror:", String(e)));
+await late.goto(url);
+await late.fill('input[placeholder*="代号"]', "迟到者");
+{
+  const digitBoxes = await late.$$(".digit-box");
+  for (let d = 0; d < 4; d++) await digitBoxes[d].fill(ROOM[d]);
+}
+await late.click('button:has-text("进入房间")');
+try {
+  await late.waitForSelector("text=对局进行中", { timeout: 15_000 });
+} catch {
+  await fail("中途加入者未看到「对局进行中」候场提示");
+}
+console.log("PASS 中途加入者在大厅候场");
+
 // ---- 各端真实绘制三部位 ----
 async function drawPart(page, seed) {
   const box = await page.locator(".draw-canvas").boundingBox();
@@ -172,7 +190,20 @@ for (let i = 0; i < N; i++) {
 console.log("  名次列表:", rankings.join(" || "));
 if (rankings.some(r => !r)) await fail("结算名次列表为空");
 if (new Set(rankings).size !== 1) await fail("各端名次结果不一致（权威结算未生效）");
+if (/迟到者/.test(rankings[0])) await fail("中途加入者被错误地计入本局名次");
 console.log("PASS 三端赛跑结果一致");
+
+// 中途加入者应始终留在大厅（未被拉入赛跑），且本局参与者在等待期间不被其阻塞（上面已完赛即证明）
+if (await late.locator(".race-banner").count()) await fail("中途加入者被拉入了本局赛跑");
+if (!(await late.locator(".players").count())) await fail("中途加入者未留在大厅");
+// 房主「再来一局」后，候场者应看到候场提示消失（round 回 idle）
+await pages[0].click('button:has-text("再来一局")');
+try {
+  await late.waitForFunction(() => !document.body.innerText.includes("对局进行中"), null, { timeout: 10_000 });
+} catch {
+  await fail("再来一局后候场提示未消失");
+}
+console.log("PASS 中途加入者未进入本局，且在再来一局后可参与下一局");
 
 await browser.close();
 cleanup();

@@ -121,6 +121,8 @@ export function RaceScreen({ demo = false }: { demo?: boolean }) {
   // rAF 闭包内需要读到最新的房主身份（房主中途掉线会移交）
   const hostRef = useRef(iAmHost);
   hostRef.current = iAmHost;
+  const hostIdRef = useRef(g.host);
+  hostIdRef.current = g.host;
   const myIndex = Math.max(0, g.horses?.findIndex(h => h.id === g.myId) ?? 0);
   const myRunnerId = (g.horses && g.horses[myIndex]?.id) || (g.horses && g.horses[0]?.id) || "default";
 
@@ -181,16 +183,19 @@ export function RaceScreen({ demo = false }: { demo?: boolean }) {
 
   useEffect(() => {
     const unsub = transport.on((msg) => {
-      if (msg.t === "horse_boost" && raceRef.current) {
+      // `_from` 由传输层按到达通道标注：加速/出局只接受本人发出，结算只接受房主发出
+      const self = msg._from == null || msg._from === msg.id;
+      if (msg.t === "horse_boost" && raceRef.current && self) {
         raceRef.current = setRunnerBoost(
           raceRef.current,
           msg.id as string,
           msg.boost as number,
           msg.whip as number
         );
-      } else if (msg.t === "horse_bucked_off" && raceRef.current) {
+      } else if (msg.t === "horse_bucked_off" && raceRef.current && self) {
         raceRef.current = setRunnerBuckedOff(raceRef.current, msg.id as string);
       } else if (msg.t === "race_result" && Array.isArray(msg.rank)) {
+        if (msg._from != null && msg._from !== hostIdRef.current) return;
         // 房主广播的权威名次：无论本地模拟是否结束都以此为准
         showResult(msg.rank as RankEntry[]);
       }

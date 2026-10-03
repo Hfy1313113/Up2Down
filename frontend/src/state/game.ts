@@ -8,6 +8,8 @@ import { Recognize } from "../game/recognize";
 import type { HorseModel, PartStrokes } from "../game/types";
 
 export type Phase = "lobby" | "draw" | "birth" | "waiting" | "race";
+/** 服务端广播的本轮状态：idle 大厅 / draw 绘制中 / race 已开赛 */
+export type RoundState = "idle" | "draw" | "race";
 
 export interface PlayerInfo {
   id: string;
@@ -28,6 +30,8 @@ interface GameState {
   room: string | null;
   host: string | null;
   players: PlayerInfo[];
+  round: RoundState;         // 服务端本轮状态
+  roundSeq: number;          // 开局时的 pid 序号水位：pid 序号 ≤ roundSeq 的成员才是本轮参与者
   doneNames: string[];
   links: LinkState;
   partLeft: number;          // 当前部位剩余秒
@@ -42,7 +46,7 @@ const PART_SECONDS = 50;
 
 let state: GameState = {
   phase: "lobby", myName: "", myId: null, room: null, host: null,
-  players: [], doneNames: [], links: { p2p: 0, relay: 0 },
+  players: [], round: "idle", roundSeq: 0, doneNames: [], links: { p2p: 0, relay: 0 },
   partLeft: PART_SECONDS, currentPart: "legs",
   myModel: null, myStrokes: null, horses: null, error: null,
 };
@@ -65,7 +69,20 @@ export function useGame(): GameState {
 }
 
 const isHost = () => state.host != null && state.host === transport.id;
-const isHostId = (id: string | null) => id != null && state.host === id;
+
+const pidNum = (id: string) => Number(id.slice(1)) || 0;
+
+/** 本轮参与者：空闲时为全体成员；对局进行中则只算开局前已在房间里的成员（中途加入者等下一局） */
+export function roundParticipants(g: Pick<GameState, "players" | "round" | "roundSeq"> = state): PlayerInfo[] {
+  if (g.round === "idle") return g.players;
+  return g.players.filter(p => pidNum(p.id) <= g.roundSeq);
+}
+export function isRoundParticipant(id: string | null, g: Pick<GameState, "players" | "round" | "roundSeq"> = state): boolean {
+  return id != null && roundParticipants(g).some(p => p.id === id);
+}
+
+/** 只有房主发出的流程消息才被接受；`_from` 由传输层按到达通道标注，本地直发（无 _from）视为可信 */
+const fromHost = (msg: NetMessage) => msg._from == null || msg._from === state.host;
 
 let partTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -150,14 +167,15 @@ export function sendDone(): void {
 
 export function maybeStartRace(): void {
   if (!isHost()) return;
-  if (state.players.length > 0 && state.players.every(p => doneIds.has(p.id))) {
+  const roster = roundParticipants();
+  if (roster.length > 0 && roster.every(p => doneIds.has(p.id))) {
     broadcastRace();
   }
 }
 
-// 全员已提交（或服务端超时）→ 房主用本地汇总的画作开赛
+// 本轮参与者全部提交（或服务端超时）→ 房主用本地汇总的画作开赛
 function broadcastRace(): void {
-  const horses = state.players.map(p => ({
+  const horses = roundParticipants().map(p => ({
     id: p.id, name: p.name,
     strokes: strokeArchive.get(p.id) ?? null,
   }));
@@ -168,8 +186,10 @@ function broadcastRace(): void {
 
 // ---------- 赛跑 ----------
 export function enterRace(msg: NetMessage): void {
-  clearInterval(partTimer!);
   const horses = (msg.horses as { id: string; name: string; strokes?: PartStrokes | null }[]) || [];
+  // 自己不在本局名单（中途加入者）：留在大厅等待下一局，不进入赛跑
+  if (!horses.some(h => h.id === transport.id)) return;
+  clearInterval(partTimer!);
   const entries: HorseEntry[] = horses.map(h => {
     if (h.id === transport.id && state.myModel) return { id: h.id, name: h.name, model: state.myModel };
     const hasStrokes = h.strokes && (h.strokes.legs?.length || h.strokes.head?.length || h.strokes.butt?.length);
@@ -197,15 +217,23 @@ export function wireTransport(): void {
   transport.on((msg: NetMessage) => {
     switch (msg.t) {
       case "room_state": {
-        const players = (msg.players as PlayerInfo[]) || [];
+        // 服务端的 done 只在控制面路径下才会置位；本地已收到 done 的成员保持 done=true，不被覆盖
+        const players = ((msg.players as PlayerInfo[]) || []).map(p => ({
+          ...p, done: !!p.done || doneIds.has(p.id),
+        }));
         const wasDraw = state.phase === "draw" || state.phase === "waiting";
-        setState({ room: msg.room as string, host: msg.host as string, players });
+        setState({
+          room: msg.room as string, host: msg.host as string, players,
+          round: (msg.round as RoundState) ?? "idle",
+          roundSeq: Number(msg.roundSeq) || 0,
+        });
         if (wasDraw) maybeStartRace();
         break;
       }
       case "done": {
-        // 其他玩家的提交（P2P 或兜底通道）
+        // 其他玩家的提交（P2P 或兜底通道）；只接受本人发出的 done
         const id = msg.id as string;
+        if (msg._from != null && msg._from !== id) break;
         const strokes = msg.strokes as PartStrokes;
         if (id && strokes) strokeArchive.set(id, strokes);
         if (id) doneIds.add(id);
@@ -218,7 +246,7 @@ export function wireTransport(): void {
         break;
       }
       case "draw_phase":
-        enterDrawPhase();
+        if (fromHost(msg)) enterDrawPhase();
         break;
       case "race_timeout": {
         // 服务端兜底：房主据本地汇总开赛，其余端等待 race
@@ -226,10 +254,10 @@ export function wireTransport(): void {
         break;
       }
       case "race":
-        enterRace(msg);
+        if (fromHost(msg)) enterRace(msg);
         break;
       case "again":
-        resetRoundState();
+        if (fromHost(msg)) resetRoundState();
         break;
       case "room_closed":
       case "_close": {
@@ -254,7 +282,7 @@ function markDone(id: string, name: string) {
     doneNames,
     players: state.players.map(p => p.id === id ? { ...p, done: true } : p),
   });
-  if (isHostId(state.host)) maybeStartRace();
+  maybeStartRace();   // 内部自行判断是否房主
 }
 
 function resetRoundState(): void {
@@ -275,7 +303,7 @@ export function resetToLobby(error?: string): void {
   strokeArchive.clear();
   transport.close();
   setState({
-    phase: "lobby", room: null, host: null, players: [], doneNames: [],
+    phase: "lobby", room: null, host: null, players: [], round: "idle", roundSeq: 0, doneNames: [],
     links: { p2p: 0, relay: 0 },
     myStrokes: null, myModel: null, horses: null, error: error ?? null,
   });

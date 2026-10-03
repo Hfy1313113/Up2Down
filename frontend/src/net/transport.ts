@@ -184,12 +184,12 @@ class P2PTransport implements Transport {
       }
       case "relay": {
         const inner = msg.data as NetMessage | undefined;
-        if (inner) this.deliver(inner);
+        if (inner) this.deliver(inner, msg.from as string | undefined);
         break;
       }
       case "relay_all": {
         const inner = msg.data as NetMessage | undefined;
-        if (inner) this.deliver(inner);
+        if (inner) this.deliver(inner, msg.from as string | undefined);
         break;
       }
       default:
@@ -201,8 +201,10 @@ class P2PTransport implements Transport {
     for (const h of this.handlers) h(msg);
   }
 
-  /** 数据面/兜底统一入口：按 _id 去重后交给上层 */
-  private deliver(msg: NetMessage): void {
+  /** 数据面/兜底统一入口：按 _id 去重、标注可信的发送者 `_from` 后交给上层。
+   *  `_from` 由传输层根据消息到达的通道（DataChannel 所属 peer / Worker 附加的 from）填写，
+   *  不信任消息体自带的字段，上层据此校验 draw_phase / race / again 等只接受房主发出。 */
+  private deliver(msg: NetMessage, from: string | undefined): void {
     const id = msg._id as string | undefined;
     if (id) {
       if (this.seen.has(id)) return;
@@ -213,7 +215,7 @@ class P2PTransport implements Transport {
         this.seen.delete(old);
       }
     }
-    this.emit(msg);
+    this.emit({ ...msg, _from: from });
   }
 
   private wsSend(obj: unknown): void {
@@ -317,7 +319,7 @@ class P2PTransport implements Transport {
     dc.onmessage = (ev) => {
       let msg: NetMessage;
       try { msg = JSON.parse(String(ev.data)); } catch { return; }
-      this.deliver(msg);
+      this.deliver(msg, peer.id);
     };
     dc.onclose = () => {
       if (peer.dc === dc) peer.dc = null;
