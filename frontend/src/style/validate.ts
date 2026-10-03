@@ -2,7 +2,7 @@
 // 新风格包有缺槽、错 id、颜色数不对时在注册阶段直接报错，而不是等到赛跑时黑屏。
 import {
   ELEPHANT_SLOTS, ELEPHANT_ACCESSORIES, RIDER_SLOTS, RIDER_ACCESSORIES, PROP_KINDS, SFX_IDS, SYNTH_PRESETS,
-  type StylePack, type MaterialSpec,
+  type StylePack, type MaterialSpec, type RiderAccessorySpec,
 } from "./types";
 
 export function validatePack(pack: unknown): string[] {
@@ -25,8 +25,15 @@ export function validatePack(pack: unknown): string[] {
     for (const [slot, m] of Object.entries(acc.materials ?? {})) checkMat(m, `elephantAccessories.${acc.kind}.${slot}`);
   }
   for (const s of RIDER_SLOTS) checkMat(p.rider?.materials?.[s], `rider.${s}`);
-  for (const a of p.rider?.accessories ?? []) {
-    if (!(RIDER_ACCESSORIES as readonly string[]).includes(a)) errs.push(`未知驭象师附件 ${a}`);
+  const checkRiderAcc = (a: RiderAccessorySpec, where: string) => {
+    const kind = typeof a === "string" ? a : a?.kind;
+    if (!(RIDER_ACCESSORIES as readonly string[]).includes(kind)) errs.push(`未知驭象师附件 ${kind}（${where}）`);
+    if (typeof a === "object" && a) for (const [slot, m] of Object.entries(a.materials ?? {})) checkMat(m, `${where}.${kind}.${slot}`);
+  };
+  for (const a of p.rider?.accessories ?? []) checkRiderAcc(a, "rider.accessories");
+  if (p.rider?.accessoriesByPlayer) {
+    if (!Array.isArray(p.rider.accessoriesByPlayer) || !p.rider.accessoriesByPlayer.length) errs.push("rider.accessoriesByPlayer 不能为空数组");
+    else p.rider.accessoriesByPlayer.forEach((list, i) => list.forEach(a => checkRiderAcc(a, `rider.accessoriesByPlayer[${i}]`)));
   }
   if (p.rider?.face) {
     checkMat(p.rider.face.calm, "rider.face.calm");
@@ -47,6 +54,7 @@ export function validatePack(pack: unknown): string[] {
     for (const pr of env.props ?? []) {
       if (!(PROP_KINDS as readonly string[]).includes(pr.kind)) errs.push(`未知装饰物 ${pr.kind}`);
       if (!(pr.count > 0)) errs.push(`装饰物 ${pr.kind} 的 count 必须 > 0`);
+      for (const [slot, m] of Object.entries(pr.materials ?? {})) checkMat(m, `props.${pr.kind}.${slot}`);
     }
   }
   if (!p.birth) errs.push("缺少 birth");

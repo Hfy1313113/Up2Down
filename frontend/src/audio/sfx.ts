@@ -275,6 +275,68 @@ const presets: Record<SynthPreset, Preset> = {
     n.connect(bp).connect(g).connect(dest);
     n.start(t0);
   },
+  squeak(ctx, dest, gain) {
+    // 玩具捏响：高音正弦快速上滑再回落，带一点三角波泛音
+    const t0 = ctx.currentTime;
+    for (const [type, mul, lv] of [["sine", 1, 0.3], ["triangle", 2.01, 0.08]] as const) {
+      const o = ctx.createOscillator();
+      o.type = type;
+      o.frequency.setValueAtTime(900 * mul, t0);
+      o.frequency.exponentialRampToValueAtTime(1900 * mul, t0 + 0.06);
+      o.frequency.exponentialRampToValueAtTime(1100 * mul, t0 + 0.16);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.linearRampToValueAtTime(lv * gain, t0 + 0.015);
+      g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.18);
+      o.connect(g).connect(dest);
+      o.start(t0); o.stop(t0 + 0.2);
+    }
+  },
+  giggle(ctx, dest, gain) {
+    // 奶声咯咯笑：五段短促的「哈」——锯齿波过共振峰带通，每段音高略降、整体先快后慢
+    const t0 = ctx.currentTime;
+    const bursts = [0, 0.11, 0.22, 0.35, 0.5];
+    bursts.forEach((d, i) => {
+      const t = t0 + d;
+      const f0 = 420 - i * 22;
+      const o = ctx.createOscillator();
+      o.type = "sawtooth";
+      o.frequency.setValueAtTime(f0 * 1.15, t);
+      o.frequency.exponentialRampToValueAtTime(f0, t + 0.06);
+      const bp = ctx.createBiquadFilter();
+      bp.type = "bandpass"; bp.frequency.value = 1100; bp.Q.value = 2.2;
+      const bp2 = ctx.createBiquadFilter();
+      bp2.type = "peaking"; bp2.frequency.value = 2600; bp2.Q.value = 3; bp2.gain.value = 8;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.linearRampToValueAtTime(0.5 * gain, t + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+      o.connect(bp).connect(bp2).connect(g).connect(dest);
+      o.start(t); o.stop(t + 0.12);
+    });
+  },
+  boing(ctx, dest, gain) {
+    // 弹簧「嘣～」：三角波先下探再弹上，带 18Hz 颤动渐止
+    const t0 = ctx.currentTime;
+    const o = ctx.createOscillator();
+    o.type = "triangle";
+    o.frequency.setValueAtTime(320, t0);
+    o.frequency.exponentialRampToValueAtTime(90, t0 + 0.08);
+    o.frequency.exponentialRampToValueAtTime(260, t0 + 0.4);
+    const lfo = ctx.createOscillator();
+    lfo.frequency.value = 18;
+    const lg = ctx.createGain();
+    lg.gain.setValueAtTime(60, t0);
+    lg.gain.exponentialRampToValueAtTime(1, t0 + 0.6);
+    lfo.connect(lg).connect(o.frequency);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.linearRampToValueAtTime(0.35 * gain, t0 + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.65);
+    o.connect(g).connect(dest);
+    o.start(t0); lfo.start(t0);
+    o.stop(t0 + 0.7); lfo.stop(t0 + 0.7);
+  },
   crash(ctx, dest, gain) {
     // 追尾：低频闷响 + 高频金属碎响
     const t0 = ctx.currentTime;

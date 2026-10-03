@@ -229,8 +229,10 @@ export function enterRace(msg: NetMessage): void {
 }
 
 // ---------- dev-only：demo 模式直接灌入赛跑状态 ----------
-export function loadDemoRace(entries: ElephantEntry[]): void {
-  setState({ phase: "race", elephants: entries });
+/** dev-only：直接进入赛跑；me 指定「自己」是第几头象（用于核对各玩家序号的脸与附件） */
+export function loadDemoRace(entries: ElephantEntry[], me = 0): void {
+  const mine = entries[Math.max(0, Math.min(entries.length - 1, me))];
+  setState({ phase: "race", elephants: entries, myId: mine?.id ?? state.myId });
 }
 
 // ---------- 网络消息注册（App 启动时调用一次） ----------

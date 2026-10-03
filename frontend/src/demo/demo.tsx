@@ -1,5 +1,5 @@
 // demo.tsx —— dev-only 演示入口：?demo=birth / ?demo=race / ?demo=draw 直接用合成 model 渲染，
-// 免多人流程即可目视验证 3D 场景（截图脚本使用）。可加 &style=<风格包 id> 指定风格。
+// 免多人流程即可目视验证 3D 场景（截图脚本使用）。可加 &style=<风格包 id> 指定风格，&me=<0~3> 指定自己是第几位玩家。
 import { useEffect, useMemo } from "react";
 import { Recognize } from "../game/recognize";
 import { synthParts } from "../game/synth";
@@ -56,6 +56,9 @@ function BirthScreenDemo({ elephants }: { elephants: ElephantEntry[] }) {
 
 function RaceDemo({ elephants }: { elephants: ElephantEntry[] }) {
   const g = useGame();
-  useEffect(() => { loadDemoRace(elephants); }, [elephants]);
+  useEffect(() => {
+    const me = Number(new URLSearchParams(location.search).get("me") ?? 0);
+    loadDemoRace(elephants, Number.isFinite(me) ? me : 0);
+  }, [elephants]);
   return g.elephants?.length ? <RaceScreen demo /> : <div className="screen">加载中…</div>;
 }

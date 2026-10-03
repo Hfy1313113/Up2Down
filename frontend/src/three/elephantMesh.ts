@@ -7,7 +7,7 @@ import * as THREE from "three";
 import { computePose } from "../game/gait";
 import type { ElephantModel, LegModel, Pose, TorsoModel, Vec2 } from "../game/types";
 import type { MaterialResolver } from "../style/materials";
-import type { ElephantAccessory, ElephantSlot, MaterialSpec, RiderAccessory, RiderSlot, StylePack } from "../style/types";
+import { riderAccessoryKind, type ElephantAccessory, type ElephantSlot, type MaterialSpec, type RiderAccessory, type RiderAccessorySpec, type RiderSlot, type StylePack } from "../style/types";
 
 // 模型本地坐标（躯干 120 单位）→ 世界尺度
 export const WORLD_SCALE = 0.02;
@@ -128,8 +128,16 @@ interface AccessoryCtx {
   body: THREE.Group;
   bodyR: number;
   mat: (slot: RiderSlot) => THREE.Material;
+  /** 附件内部材质槽位：风格包以 { kind, materials } 逐槽覆盖，否则用附件自带的默认材质 */
+  amat: (slot: string, fallback: MaterialSpec) => THREE.Material;
   track: Track;
 }
+const HORN: MaterialSpec = { color: "#8d8373", roughness: 0.7 };
+const PINK_INNER: MaterialSpec = { color: "#f4b7a6", roughness: 0.85 };
+const MUZZLE_PINK: MaterialSpec = { color: "#f1c7b5", roughness: 0.8 };
+const NOSTRIL: MaterialSpec = { color: "#5a3528", roughness: 0.9 };
+const BIG_NOSE: MaterialSpec = { color: "#6b3a22", roughness: 0.55 };   // 肥嘟嘟袋鼠的大棕鼻
+const CREAM: MaterialSpec = { color: "#fff1cf", roughness: 0.9 };
 const ACCESSORIES: Record<RiderAccessory, (c: AccessoryCtx) => void> = {
   helmet({ head, headR, mat, track }) {
     // 头盔只盖到眉毛上方（约 70°），把脸留出来
@@ -235,6 +243,92 @@ const ACCESSORIES: Record<RiderAccessory, (c: AccessoryCtx) => void> = {
     const rest = new THREE.Mesh(track(new THREE.BoxGeometry(bodyR * 0.22, bodyR * 0.62, bodyR * 0.78)), m);
     rest.position.set(-bodyR * 0.3, bodyR * 1.62, 0);
     body.add(rest);
+  },
+  horns({ head, headR, amat, track }) {
+    // 牛来的犄角：头顶两侧向外上方伸出的灰褐色短角（底粗尖细、略向后弯）
+    const m = amat("horn", HORN);
+    const geo = track(new THREE.ConeGeometry(headR * 0.17, headR * 0.8, 10));
+    geo.translate(0, headR * 0.4, 0);
+    for (const s of [-1, 1]) {
+      const horn = new THREE.Mesh(geo, m);
+      horn.position.set(-headR * 0.1, headR * 0.72, s * headR * 0.5);
+      horn.rotation.set(s * 0.65, 0, 0.25);
+      head.add(horn);
+      const base = new THREE.Mesh(track(new THREE.SphereGeometry(headR * 0.19, 8, 6)), m);
+      base.position.set(-headR * 0.1, headR * 0.72, s * headR * 0.5);
+      head.add(base);
+    }
+  },
+  cowEars({ head, headR, mat, amat, track }) {
+    // 牛耳：水平向两侧伸出的扁耳（外皮肤色、内耳粉色）
+    const outer = mat("skin"), inner = amat("inner", PINK_INNER);
+    const geo = track(new THREE.SphereGeometry(1, 10, 8));
+    for (const s of [-1, 1]) {
+      const ear = new THREE.Mesh(geo, outer);
+      ear.scale.set(headR * 0.3, headR * 0.2, headR * 0.5);
+      ear.position.set(-headR * 0.05, headR * 0.22, s * headR * 1.15);
+      ear.rotation.x = s * 0.35;
+      head.add(ear);
+      const pad = new THREE.Mesh(geo, inner);
+      pad.scale.set(headR * 0.16, headR * 0.1, headR * 0.3);
+      pad.position.set(headR * 0.12, headR * 0.26, s * headR * 1.2);
+      pad.rotation.x = s * 0.35;
+      head.add(pad);
+    }
+  },
+  muzzle({ head, headR, amat, track }) {
+    // 牛来的粉色大吻部：扁椭球凸出在脸下半部 + 两只鼻孔 + 一字不屑嘴
+    const m = amat("muzzle", MUZZLE_PINK), hole = amat("nostril", NOSTRIL);
+    const geo = track(new THREE.SphereGeometry(1, 14, 10));
+    const muzzle = new THREE.Mesh(geo, m);
+    muzzle.scale.set(headR * 0.5, headR * 0.42, headR * 0.64);
+    muzzle.position.set(headR * 0.68, -headR * 0.36, 0);
+    head.add(muzzle);
+    const nGeo = track(new THREE.SphereGeometry(headR * 0.07, 8, 6));
+    for (const s of [-1, 1]) {
+      const n = new THREE.Mesh(nGeo, hole);
+      n.scale.set(0.5, 0.7, 1);
+      n.position.set(headR * 1.15, -headR * 0.26, s * headR * 0.22);
+      head.add(n);
+    }
+    const lip = new THREE.Mesh(track(new THREE.TorusGeometry(headR * 0.26, headR * 0.022, 6, 16, Math.PI * 0.8)), hole);
+    lip.position.set(headR * 1.1, -headR * 0.5, 0);
+    lip.rotation.set(0, Math.PI / 2, Math.PI + 0.1);
+    head.add(lip);
+  },
+  tallEars({ head, headR, mat, amat, track }) {
+    // 肥嘟嘟的高立耳：两只向上外撇的长胶囊（外皮肤色、内耳粉色）
+    const outer = mat("skin"), inner = amat("inner", PINK_INNER);
+    const geo = track(new THREE.CapsuleGeometry(headR * 0.24, headR * 0.95, 6, 10));
+    const padGeo = track(new THREE.CapsuleGeometry(headR * 0.12, headR * 0.6, 4, 8));
+    for (const s of [-1, 1]) {
+      const ear = new THREE.Mesh(geo, outer);
+      ear.position.set(-headR * 0.12, headR * 1.35, s * headR * 0.5);
+      ear.rotation.set(s * -0.32, 0, -0.18);
+      head.add(ear);
+      const pad = new THREE.Mesh(padGeo, inner);
+      pad.position.set(headR * 0.02, headR * 1.38, s * headR * 0.5);
+      pad.rotation.set(s * -0.32, 0, -0.18);
+      pad.scale.set(0.6, 1, 1);
+      head.add(pad);
+    }
+  },
+  bigNose({ head, headR, amat, track }) {
+    // 肥嘟嘟的大棕鼻：正脸下半部凸出的大圆鼻 + 高光
+    const nose = new THREE.Mesh(track(new THREE.SphereGeometry(headR * 0.36, 14, 10)), amat("nose", BIG_NOSE));
+    nose.scale.set(0.82, 0.86, 1);
+    nose.position.set(headR * 0.9, -headR * 0.16, 0);
+    head.add(nose);
+    const shine = new THREE.Mesh(track(new THREE.SphereGeometry(headR * 0.07, 6, 5)), amat("shine", { color: "#ffffff", unlit: true }));
+    shine.position.set(headR * 1.12, headR * 0.02, -headR * 0.12);
+    head.add(shine);
+  },
+  belly({ body, bodyR, amat, track }) {
+    // 奶白肚皮：贴在上衣正前方的扁椭球
+    const belly = new THREE.Mesh(track(new THREE.SphereGeometry(1, 14, 10)), amat("belly", CREAM));
+    belly.scale.set(bodyR * 0.2, bodyR * 0.46, bodyR * 0.3);
+    belly.position.set(bodyR * 0.32, bodyR * 0.6, 0);
+    body.add(belly);
   },
   steeringWheel({ body, bodyR, mat, track }) {
     // 方向盘：轮圈 + 三辐 + 转向柱，立在驭象师胸前
@@ -365,6 +459,53 @@ const ELEPHANT_ACCESSORY_BUILDERS: Record<ElephantAccessory, (c: ElephantAccCtx)
     const bar = new THREE.Mesh(track(new THREE.BoxGeometry(size * 0.12, size * 0.12, size * 1.35)), mat("chrome", CHROME));
     bar.position.set(size * 0.62, -size * 0.55, 0);
     headGroup.add(bar);
+  },
+  bigEyes({ headGroup, size, mat, track }) {
+    // 奶娃式大圆眼：白眼球 + 沿视线凸出的绿色虹膜 + 黑瞳 + 高光，长在头的正前上方、盖住头两侧的默认小眼
+    const sclera = mat("sclera", { color: "#ffffff", roughness: 0.35 });
+    const iris = mat("iris", { color: "#3bb273", roughness: 0.4 });
+    const pupil = mat("pupil", { color: "#151515", roughness: 0.3 });
+    const shine = mat("shine", { color: "#ffffff", unlit: true });
+    const R = size * 0.25;
+    const ballGeo = track(new THREE.SphereGeometry(R, 16, 12));
+    const irisGeo = track(new THREE.SphereGeometry(size * 0.165, 14, 10));
+    const pupilGeo = track(new THREE.SphereGeometry(size * 0.085, 10, 8));
+    const shineGeo = track(new THREE.SphereGeometry(size * 0.035, 6, 5));
+    const xAxis = new THREE.Vector3(1, 0, 0);
+    for (const s of [-1, 1]) {
+      const E = new THREE.Vector3(size * 0.52, size * 0.16, s * size * 0.4);
+      const D = new THREE.Vector3(0.9, 0.08, s * 0.36).normalize();
+      const q = new THREE.Quaternion().setFromUnitVectors(xAxis, D);
+      const ball = new THREE.Mesh(ballGeo, sclera);
+      ball.position.copy(E);
+      headGroup.add(ball);
+      const ir = new THREE.Mesh(irisGeo, iris);
+      ir.scale.set(0.38, 1, 1);
+      ir.quaternion.copy(q);
+      ir.position.copy(E).addScaledVector(D, R * 0.95);
+      headGroup.add(ir);
+      const pu = new THREE.Mesh(pupilGeo, pupil);
+      pu.scale.set(0.38, 1, 1);
+      pu.quaternion.copy(q);
+      pu.position.copy(E).addScaledVector(D, R * 1.03);
+      headGroup.add(pu);
+      const sh = new THREE.Mesh(shineGeo, shine);
+      sh.position.copy(E).addScaledVector(D, R * 1.07).add(new THREE.Vector3(0, size * 0.06, -s * size * 0.05));
+      headGroup.add(sh);
+    }
+  },
+  belly({ group, headGroup, size, torso: T, radius, mat, track }) {
+    // 奶白肚皮：躯干前下方的大椭圆斑 + 下巴到胸口的一小块
+    const m = mat("belly", CREAM);
+    const geo = track(new THREE.SphereGeometry(1, 16, 12));
+    const belly = new THREE.Mesh(geo, m);
+    belly.scale.set(T.len * 0.34, radius * 0.86, radius * 0.82);
+    belly.position.set(T.cx + T.len * 0.04, T.cy - radius * 0.36, 0);
+    group.add(belly);
+    const chin = new THREE.Mesh(geo, m);
+    chin.scale.set(size * 0.34, size * 0.3, size * 0.5);
+    chin.position.set(size * 0.22, -size * 0.52, 0);
+    headGroup.add(chin);
   },
 };
 
@@ -580,9 +721,19 @@ export function buildElephant(model: ElephantModel, opts: BuildOptions): Elephan
   hair.position.set(-headR * 0.05, headR * 0.05, 0);
   riderHead.add(hair);
 
-  // 附件按风格包清单挂载
-  const accCtx: AccessoryCtx = { head: riderHead, headR, body: riderGroup, bodyR: radius, mat: rMat, track };
-  for (const acc of pack.rider.accessories) ACCESSORIES[acc]?.(accCtx);
+  // 附件按风格包清单挂载：公共附件 + 按玩家序号轮选的附件组
+  const byPlayer = pack.rider.accessoriesByPlayer;
+  const riderAccs: RiderAccessorySpec[] = [
+    ...pack.rider.accessories,
+    ...(byPlayer?.length ? byPlayer[((playerIndex % byPlayer.length) + byPlayer.length) % byPlayer.length] : []),
+  ];
+  for (const acc of riderAccs) {
+    const spec = typeof acc === "string" ? undefined : acc.materials;
+    ACCESSORIES[riderAccessoryKind(acc)]?.({
+      head: riderHead, headR, body: riderGroup, bodyR: radius, mat: rMat, track,
+      amat: (slot, fallback) => materials.get(spec?.[slot] ?? fallback, playerIndex),
+    });
+  }
 
   // 双腿跨骑
   const riderThighs: THREE.Mesh[] = [];

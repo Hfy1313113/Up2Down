@@ -2,7 +2,7 @@
 // 程序化纹理在此由配方画到 Canvas（按配方缓存一次），图片纹理走 TextureLoader；
 // 任一纹理失败都回落到纯色。材质在解析器内共享与统一释放，网格层不再各自 dispose 材质。
 import * as THREE from "three";
-import type { MaterialSpec, ProceduralRecipe, TextureSpec } from "./types";
+import type { FaceSpecies, MaterialSpec, ProceduralRecipe, TextureSpec } from "./types";
 
 /** 确定性伪随机（配方 seed 相同 → 纹理相同） */
 function mulberry32(seed: number) {
@@ -22,9 +22,16 @@ export function faceVariant(recipe: Extract<ProceduralRecipe, { type: "face" }>,
   const v = recipe.variant === "$player" ? playerIndex : (recipe.variant ?? 0);
   return ((Math.floor(v) % FACE_VARIANTS) + FACE_VARIANTS) % FACE_VARIANTS;
 }
+/** 脸配方的物种：species 为数组时按玩家序号轮选 */
+export function faceSpecies(recipe: Extract<ProceduralRecipe, { type: "face" }>, playerIndex: number): FaceSpecies {
+  const sp = recipe.species;
+  if (!sp) return "human";
+  if (Array.isArray(sp)) return sp.length ? sp[((playerIndex % sp.length) + sp.length) % sp.length] : "human";
+  return sp;
+}
 /** 配方是否按玩家序号（而非仅玩家色）变化：这类纹理与材质的缓存键要带上序号 */
 export function recipeUsesIndex(recipe: ProceduralRecipe): boolean {
-  return recipe.type === "face" && (recipe.variant === "$player" || Array.isArray(recipe.skin));
+  return recipe.type === "face" && (recipe.variant === "$player" || Array.isArray(recipe.skin) || Array.isArray(recipe.species));
 }
 
 /** 把配方画到 canvas；纯函数式：同配方同尺寸同输出 */
@@ -224,6 +231,11 @@ export function paintRecipe(ctx: CanvasRenderingContext2D, size: number, recipe:
       ctx.fillStyle = sub(skins[((playerIndex % skins.length) + skins.length) % skins.length]);
       ctx.fillRect(0, 0, size, size);
       const ink = sub(recipe.ink);
+      const species = faceSpecies(recipe, playerIndex);
+      if (species !== "human") {
+        paintMascotFace(ctx, size, species, recipe.mood, v, ink, recipe.sweat ? sub(recipe.sweat) : undefined, rand);
+        break;
+      }
       const s = size, cx = s * 0.5;
       const eyeDx = s * 0.078;
       const browY = s * 0.40, eyeY = s * 0.47, noseY = s * 0.555, mouthY = s * 0.655;
@@ -376,11 +388,134 @@ export function paintRecipe(ctx: CanvasRenderingContext2D, size: number, recipe:
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       const text = recipe.text;
-      const fontPx = Math.min(size * 0.5, (size * (circle ? 0.6 : 0.86)) / Math.max(1, text.length * 0.62));
+      // 承载面若是横牌（aspect > 1），文字先按 1/aspect 横向预压，贴上去后恢复原形
+      const aspect = Math.max(0.2, recipe.aspect ?? 1);
+      const cjk = /[\u3000-\u9fff\uff00-\uffef]/.test(text);
+      const perChar = cjk ? 1.0 : 0.62;
+      const fontPx = Math.min(size * 0.5, (size * aspect * (circle ? 0.6 : 0.86)) / Math.max(1, text.length * perChar));
       ctx.font = `bold ${fontPx}px sans-serif`;
-      ctx.fillText(text, size / 2, size / 2 + fontPx * 0.05);
+      ctx.save();
+      ctx.translate(size / 2, size / 2 + fontPx * 0.05);
+      ctx.scale(1 / aspect, 1);
+      ctx.fillText(text, 0, 0);
+      ctx.restore();
       break;
     }
+  }
+}
+
+/**
+ * 吉祥物脸（bull 黄毛牛头 / roo 肥嘟嘟黄袋鼠）：与人脸共用同一套球面布局——五官集中在 u=0.5 ±10%、v 40%~70%。
+ * 3D 附件（牛角 / 牛耳 / 粉吻；立耳 / 大棕鼻）由附件库挂在头球上，这里只画眉眼、嘴与腮红等平面部分。
+ */
+function paintMascotFace(
+  ctx: CanvasRenderingContext2D, s: number, species: Exclude<FaceSpecies, "human">,
+  mood: "calm" | "angry" | "grit", v: number, ink: string, sweat: string | undefined, rand: () => number,
+): void {
+  const cx = s * 0.5;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  const stroke = (w: number, color: string, draw: () => void) => { ctx.strokeStyle = color; ctx.lineWidth = w; ctx.beginPath(); draw(); ctx.stroke(); };
+  const fill = (color: string, draw: () => void) => { ctx.fillStyle = color; ctx.beginPath(); draw(); ctx.fill(); };
+  // 绒毛感：细碎同色系短划
+  ctx.globalAlpha = 0.12;
+  for (let i = 0; i < 160; i++) {
+    const x = rand() * s, y = rand() * s, a = rand() * Math.PI;
+    stroke(s * 0.004, i % 2 ? "#ffffff" : ink, () => { ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(a) * s * 0.02, y + Math.sin(a) * s * 0.02); });
+  }
+  ctx.globalAlpha = 1;
+
+  if (species === "bull") {
+    // ---- 牛来：人脸式眉眼（半阖、不屑）+ 粉色大吻部（3D 吻部附件接在下方）----
+    const eyeDx = s * 0.075, browY = s * 0.405, eyeY = s * 0.465;
+    const alt = (v >> 1) & 1;   // 同物种两位玩家略有不同：挑眉 / 平眉
+    // 粉吻底色上缘：画在纹理上与 3D 吻部衔接
+    fill("#f1c7b5", () => ctx.ellipse(cx, s * 0.62, s * 0.115, s * 0.075, 0, 0, Math.PI * 2));
+    for (const sd of [-1, 1]) {
+      const x = cx + sd * eyeDx;
+      // 眼白 + 棕色虹膜 + 瞳孔；calm 半阖（上眼睑压下 40%）
+      fill("#fdf6ec", () => ctx.ellipse(x, eyeY, s * 0.03, s * 0.024, 0, 0, Math.PI * 2));
+      fill("#5a3a1e", () => ctx.ellipse(x + sd * s * 0.006, eyeY + s * 0.003, s * 0.016, s * 0.018, 0, 0, Math.PI * 2));
+      fill(ink, () => ctx.ellipse(x + sd * s * 0.007, eyeY + s * 0.004, s * 0.008, s * 0.01, 0, 0, Math.PI * 2));
+      fill("#ffffff", () => ctx.ellipse(x + sd * s * 0.002, eyeY - s * 0.006, s * 0.004, s * 0.004, 0, 0, Math.PI * 2));
+      if (mood === "calm") {
+        // 半阖上眼睑：用肤色盖住上 40% 再描睑线
+        fill("#f3bd2c", () => { ctx.rect(x - s * 0.034, eyeY - s * 0.03, s * 0.068, s * 0.021); });
+        stroke(s * 0.007, ink, () => { ctx.moveTo(x - s * 0.03, eyeY - s * 0.009); ctx.lineTo(x + s * 0.03, eyeY - s * 0.009); });
+      } else if (mood === "grit") {
+        // 咬牙：眯成一条缝
+        fill("#f3bd2c", () => { ctx.rect(x - s * 0.034, eyeY - s * 0.03, s * 0.068, s * 0.026); });
+        fill("#f3bd2c", () => { ctx.rect(x - s * 0.034, eyeY + s * 0.006, s * 0.068, s * 0.03); });
+        stroke(s * 0.008, ink, () => { ctx.moveTo(x - s * 0.03, eyeY - s * 0.004); ctx.lineTo(x + s * 0.03, eyeY + s * 0.004); });
+      }
+      // 眉：粗黑；calm 一边挑眉（alt）/ 平眉；angry、grit 眉头压向鼻梁
+      if (mood === "calm") {
+        const lift = alt && sd === 1 ? -s * 0.014 : 0;
+        stroke(s * 0.016, ink, () => { ctx.moveTo(x - sd * s * 0.034, browY + s * 0.004); ctx.quadraticCurveTo(x, browY - s * 0.012 + lift, x + sd * s * 0.034, browY - s * 0.002 + lift); });
+      } else {
+        stroke(mood === "grit" ? s * 0.022 : s * 0.018, ink, () => { ctx.moveTo(x - sd * s * 0.036, browY - s * 0.02); ctx.lineTo(x + sd * s * 0.034, browY + s * 0.014); });
+      }
+    }
+    // 鼻梁阴影两点（吻部上方）
+    for (const sd of [-1, 1]) fill("#d9a08e", () => ctx.ellipse(cx + sd * s * 0.035, s * 0.6, s * 0.012, s * 0.009, 0, 0, Math.PI * 2));
+    // 嘴：calm 不屑的一字微笑；angry 张嘴；grit 咬牙白牙
+    const my = s * 0.665;
+    if (mood === "calm") {
+      stroke(s * 0.008, "#7a4a3a", () => { ctx.moveTo(cx - s * 0.06, my); ctx.quadraticCurveTo(cx, my + s * 0.016, cx + s * 0.06, my - s * 0.006); });
+    } else if (mood === "angry") {
+      fill("#5a1a12", () => ctx.ellipse(cx, my + s * 0.004, s * 0.05, s * 0.024, 0, 0, Math.PI * 2));
+      fill("#ffffff", () => { ctx.rect(cx - s * 0.04, my - s * 0.018, s * 0.08, s * 0.012); });
+    } else {
+      fill("#ffffff", () => ctx.roundRect(cx - s * 0.07, my - s * 0.024, s * 0.14, s * 0.05, s * 0.018));
+      stroke(s * 0.008, ink, () => ctx.roundRect(cx - s * 0.07, my - s * 0.024, s * 0.14, s * 0.05, s * 0.018));
+      stroke(s * 0.006, ink, () => { ctx.moveTo(cx - s * 0.07, my); ctx.lineTo(cx + s * 0.07, my); });
+      for (const dx of [-0.035, 0, 0.035]) stroke(s * 0.004, ink, () => { ctx.moveTo(cx + s * dx, my - s * 0.02); ctx.lineTo(cx + s * dx, my + s * 0.02); });
+    }
+  } else {
+    // ---- 胆子肥嘟嘟（黄袋鼠）：圆白眼 + 黑豆瞳（无辜 / 惊讶），大棕鼻与立耳是 3D 附件，嘴画在鼻下 ----
+    const eyeDx = s * 0.062, eyeY = s * 0.445;
+    const alt = (v >> 1) & 1;   // 瞳孔居中 / 偏向一侧
+    for (const sd of [-1, 1]) {
+      const x = cx + sd * eyeDx;
+      const rx = mood === "grit" ? s * 0.03 : s * 0.034, ry = mood === "grit" ? s * 0.02 : s * 0.036;
+      fill("#ffffff", () => ctx.ellipse(x, eyeY, rx, ry, 0, 0, Math.PI * 2));
+      stroke(s * 0.004, "#c9a24a", () => ctx.ellipse(x, eyeY, rx, ry, 0, 0, Math.PI * 2));
+      const px = x + (alt ? sd * s * 0.008 : -sd * s * 0.004), py = eyeY + (mood === "grit" ? 0 : s * 0.006);
+      const pr = mood === "angry" ? s * 0.012 : s * 0.017;
+      fill("#2b1608", () => ctx.ellipse(px, py, pr, mood === "grit" ? pr * 0.6 : pr * 1.1, 0, 0, Math.PI * 2));
+      fill("#ffffff", () => ctx.ellipse(px - s * 0.005, py - s * 0.006, s * 0.004, s * 0.004, 0, 0, Math.PI * 2));
+      if (mood !== "calm") {
+        // 怒 / 咬牙：倒八字眉压在眼上
+        stroke(mood === "grit" ? s * 0.016 : s * 0.012, ink, () => { ctx.moveTo(x - sd * s * 0.03, eyeY - s * 0.052); ctx.lineTo(x + sd * s * 0.034, eyeY - s * 0.03); });
+      }
+    }
+    // 腮红
+    for (const sd of [-1, 1]) {
+      ctx.globalAlpha = 0.35;
+      fill("#ff9b7a", () => ctx.ellipse(cx + sd * s * 0.12, s * 0.56, s * 0.028, s * 0.016, 0, 0, Math.PI * 2));
+      ctx.globalAlpha = 1;
+    }
+    // 嘴（鼻子附件的正下方）：calm 小小的惊讶 o / 微笑；angry 张大；grit 咬牙
+    const my = s * 0.69;
+    if (mood === "calm") {
+      if (alt) stroke(s * 0.008, "#6b3a22", () => { ctx.moveTo(cx - s * 0.03, my - s * 0.006); ctx.quadraticCurveTo(cx, my + s * 0.016, cx + s * 0.03, my - s * 0.006); });
+      else fill("#4a2314", () => ctx.ellipse(cx, my, s * 0.014, s * 0.016, 0, 0, Math.PI * 2));
+    } else if (mood === "angry") {
+      fill("#4a2314", () => ctx.ellipse(cx, my + s * 0.004, s * 0.04, s * 0.03, 0, 0, Math.PI * 2));
+      fill("#ff8fa3", () => ctx.ellipse(cx, my + s * 0.02, s * 0.02, s * 0.012, 0, 0, Math.PI * 2));
+    } else {
+      fill("#ffffff", () => ctx.roundRect(cx - s * 0.055, my - s * 0.02, s * 0.11, s * 0.04, s * 0.014));
+      stroke(s * 0.007, ink, () => ctx.roundRect(cx - s * 0.055, my - s * 0.02, s * 0.11, s * 0.04, s * 0.014));
+      stroke(s * 0.005, ink, () => { ctx.moveTo(cx - s * 0.055, my); ctx.lineTo(cx + s * 0.055, my); });
+    }
+  }
+  if (sweat) {
+    const sx = cx + s * 0.15, sy = s * 0.44;
+    fill(sweat, () => {
+      ctx.moveTo(sx, sy - s * 0.032);
+      ctx.quadraticCurveTo(sx + s * 0.026, sy + s * 0.012, sx, sy + s * 0.024);
+      ctx.quadraticCurveTo(sx - s * 0.026, sy + s * 0.012, sx, sy - s * 0.032);
+    });
   }
 }
 

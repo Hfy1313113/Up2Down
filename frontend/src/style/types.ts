@@ -22,9 +22,21 @@ export type ProceduralRecipe =
    * variant 决定长相（0 闷闷 / 1 八字胡 / 2 乐呵 / 3 困倦），写 "$player" 则按玩家序号轮选，用于区分不同玩家；
    * skin 可给数组，同样按玩家序号取色。
    */
-  | { type: "face"; skin: string | string[]; ink: string; mood: "calm" | "angry" | "grit"; variant?: number | "$player"; mouth?: string; sweat?: string }
-  /** 圆形标牌 / 车牌：底色 + 环 + 居中文字（限速牌、车牌号等） */
-  | { type: "label"; base: string; ink: string; text: string; ring?: string; shape?: "circle" | "rect" };
+  | {
+      type: "face"; skin: string | string[]; ink: string; mood: "calm" | "angry" | "grit"; variant?: number | "$player"; mouth?: string; sweat?: string;
+      /**
+       * 脸的物种：human 为默认的人脸；bull 为黄毛牛头（人脸式眉眼 + 粉吻）；roo 为肥嘟嘟黄袋鼠（圆白眼 + 大棕鼻 + 立耳）。
+       * 给数组则按玩家序号轮选（如 ["bull", "roo"] → 偶数号牛、奇数号袋鼠），与 rider.accessoriesByPlayer 配套使用。
+       */
+      species?: FaceSpecies | FaceSpecies[];
+    }
+  /**
+   * 圆形标牌 / 车牌 / 广告牌：底色 + 环 + 居中文字（限速牌、车牌号、弹幕牌等）。
+   * aspect 为承载面的宽高比（如 1.3 的横牌）：文字按 1/aspect 横向预压，贴到非正方形面上后不变形。
+   */
+  | { type: "label"; base: string; ink: string; text: string; ring?: string; shape?: "circle" | "rect"; aspect?: number };
+
+export type FaceSpecies = "human" | "bull" | "roo";
 
 export type TextureSpec =
   | { kind: "image"; url: string }
@@ -52,11 +64,11 @@ export const ELEPHANT_SLOTS = [
 export type ElephantSlot = (typeof ELEPHANT_SLOTS)[number];
 export type ElephantSkin = Record<ElephantSlot, MaterialSpec>;
 /** 大象附件（车件）：几何由 elephantMesh 的附件库实现；风格包只声明挂哪些、可逐槽覆盖材质 */
-export const ELEPHANT_ACCESSORIES = ["headlights", "taillights", "mirrors", "plate", "hubcaps", "bumper"] as const;
+export const ELEPHANT_ACCESSORIES = ["headlights", "taillights", "mirrors", "plate", "hubcaps", "bumper", "bigEyes", "belly"] as const;
 export type ElephantAccessory = (typeof ELEPHANT_ACCESSORIES)[number];
 export interface ElephantAccessorySpec {
   kind: ElephantAccessory;
-  /** 覆盖该附件内部材质槽位（槽位名由附件库定义，如 lamp / signal / tailLamp / chrome / plate / tire） */
+  /** 覆盖该附件内部材质槽位（槽位名由附件库定义，如 lamp / signal / tailLamp / chrome / plate / tire / sclera / iris / pupil / belly） */
   materials?: Record<string, MaterialSpec>;
 }
 
@@ -68,8 +80,14 @@ export type RiderSlot = (typeof RIDER_SLOTS)[number];
 export const RIDER_ACCESSORIES = [
   "turban", "helmet", "visor", "cap", "plume", "mustache", "beard", "bindi", "sash",
   "curlyHair", "seat", "steeringWheel",
+  "horns", "cowEars", "muzzle", "tallEars", "bigNose", "belly",
 ] as const;
 export type RiderAccessory = (typeof RIDER_ACCESSORIES)[number];
+/** 驭象师附件：只写名字，或 { kind, materials } 逐槽覆盖该附件内部材质（槽位名由附件库定义，如 horn / inner / muzzle / nostril / nose / belly） */
+export type RiderAccessorySpec = RiderAccessory | { kind: RiderAccessory; materials?: Record<string, MaterialSpec> };
+export function riderAccessoryKind(a: RiderAccessorySpec): RiderAccessory {
+  return typeof a === "string" ? a : a.kind;
+}
 /**
  * 驭象师脸部材质（可选）：calm 为常态；tense / furious 在连点加速强度升高时依次切换
  * （未提供的档位沿用上一档；整体缺省则头部用 skin 材质）。
@@ -81,7 +99,13 @@ export interface RiderFaceSpec {
 }
 export interface RiderOutfit {
   materials: Record<RiderSlot, MaterialSpec>;
-  accessories: RiderAccessory[];
+  /** 全体驭象师共有的附件 */
+  accessories: RiderAccessorySpec[];
+  /**
+   * 按玩家序号轮选的附件组（可选）：第 i 位玩家额外挂 accessoriesByPlayer[i % length]。
+   * 用于让不同玩家长成不同角色（如偶数号牛角 + 牛耳 + 粉吻、奇数号立耳 + 大鼻子），与 face 配方的 species 数组配套。
+   */
+  accessoriesByPlayer?: RiderAccessorySpec[][];
   face?: RiderFaceSpec;
 }
 
@@ -90,6 +114,7 @@ export interface RiderOutfit {
 export const PROP_KINDS = [
   "palm", "roundTree", "bush", "rock", "temple", "torana", "bunting", "lantern", "lamppost", "flag", "mountain",
   "hill", "highwayLamp", "roadSign", "boxCar", "boxTruck",
+  "milkBaby", "fuzzyBull", "chubbyRoo", "milkBottle", "billboard",
 ] as const;
 export type PropKind = (typeof PROP_KINDS)[number];
 export interface PropSpec {
@@ -103,6 +128,8 @@ export interface PropSpec {
   jitter?: number;
   scale?: number;
   seed?: number;
+  /** 装饰物内部变体名（由装饰库定义，如 milkBaby 的 smile / laugh / sad / mixed），缺省取该装饰物的默认变体 */
+  variant?: string;
   /** 覆盖该装饰物内部材质槽位（槽位名由装饰库定义） */
   materials?: Record<string, MaterialSpec>;
 }
@@ -191,6 +218,7 @@ export const SYNTH_PRESETS = [
   "whipCrack", "dholHit", "tablaTak", "thud", "brassFanfare", "shehnaiFanfare", "boom", "slideWhistle",
   "trumpetTrunk", "tick", "goBlast", "click",
   "hornHonk", "engineRev", "tireScreech", "crash",
+  "squeak", "giggle", "boing",
 ] as const;
 export type SynthPreset = (typeof SYNTH_PRESETS)[number];
 export interface SfxSpec {
