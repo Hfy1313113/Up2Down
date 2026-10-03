@@ -93,14 +93,18 @@ lobby ──房主 startGame()──► draw ──三部位画完 prepareBirth(
   **扇耳**（识别到耳尖则由耳根指向耳尖的薄椭圆，否则默认一对；随步伐扇动）；脖子由识别脖子根→头端驱动；
   尾巴优先按识别曲线生成 CatmullRom 细管尾（尾尖带穗），无曲线时退回默认尾柱；
   **大象附件库**按 `pack.elephantAccessories` 挂载车件：`headlights`（头球前方半嵌的大灯 + 侧面转向灯）、`taillights`（躯干后半球尾灯）、`mirrors`（头两侧短杆圆后视镜）、`plate`（屁股正后方车牌，-x 面贴 `label` 文字材质）、`hubcaps`（每只象足套黑胎环 + 外侧轮毂盖）、`bumper`（吻下镀铬保险杠）；
-  象背固定象毯（带垂幔），驭象师骑在象毯上，头球为 24×16 段以承载脸贴图，默认后脑头发只覆盖 x≤0 的后半球；
+  象背固定象毯（带垂幔），驭象师骑在象毯上，头球为 24×16 段以承载脸贴图，默认后脑头发只覆盖 x≤0 的后半球；头盔只盖到眉上、帽檐与头巾缠绕层抬到眉毛以上、小胡子落在鼻嘴之间，都给脸贴图让位；
+  **每个驭象师都有脸**：`pack.rider.face` 缺省时按 `skin` 颜色生成默认三档脸（深肤色用浅线），长相 `variant: "$player"` 按玩家序号轮选；
   **驭象师附件库**按 `pack.rider.accessories` 挂载（头巾含宝石、头盔、面罩、帽、羽饰、小胡子、胡须、眉心点、绶带、蓬松卷发、座椅靠背与头枕、方向盘）；
-  **表情档位**：`pack.rider.face` 给出 `calm / tense / furious` 三档材质时，`setPose` 按连点强度（>0.2 / >0.7）或甩飞状态切换头球材质；
+  **表情档位**：`setPose` 按连点强度（>0.2 / >0.7）或甩飞状态在 `calm / tense / furious` 三档头球材质间切换；
+  **狰狞形变**：挥鞭强度 `k` 越大，头球以 28Hz 级抖动（三轴旋转幅度 ∝ k）、横向拉伸 / 纵向挤压（±16% / ±12%）并侧倾，呈现越抽越用力的扭曲；
   `setPose(pose, whipIntensity, dt, buckedOff, riderFlyY, riderFlyRot, riderFlyX)` 每帧写入步态正解、挥鞭抽打动作与过载坠象的人象分离、四肢乱蹬大风车抛飞姿态。
   `dispose()` 只释放几何，材质由解析器释放。
 - `environment.buildEnvironment(scene, pack, resolver, trackLenWorld, track)`：天空（纯色或 2×256 渐变 Canvas 纹理）、雾、半球光 + 平行光、地面、跑道、
   InstancedMesh 栅栏、终点门与双色格横幅、礼花筒基座、云朵，再按 `props[]` 调 `props.buildProps()`；装饰物按 `seed` 确定性分布，`torana` / `bunting` 横跨赛道居中，其余按侧放置，神庙门洞与高速路灯灯臂朝向跑道，方块车 / 厢货车头朝 +x（与赛跑方向一致），限速牌两面都贴标牌纹理。
 - `raceScene.RaceScene(canvas, entries, myIndex, pack)`：相机跟随自身大象（第三人称）、第一人称自由转头环视，坠象时自动切入的**第二人称大象回望特写相机**（同时框住回眸的大象与升天的驭象师），以及出局后跟随领跑者（`leaderOf`）的观战相机。
+  **面部直播画中画**：主画面渲染完后，用第二台 `faceCam`（fov 30→24）以 `setScissor` / `setViewport` 在同一画布右下角再渲染一次；相机架在驭象师头球正前方 `headR × (9.5 − 3.6k)` 处，随挥鞭强度 `k` 贴近、抖动（∝ k²）、机身滚转，正常时朝向取大象整体姿态（头部抖动因此可见），甩飞时改取头部朝向（镜头随人翻滚）；出局观战后不再渲染。
+  区域由 `pipLayout(width, height)` 给出：宽屏贴右下角（宽 160~300px），窄屏抬到底部 HUD 之上；`RaceScreen` 用同一函数定位 HTML 覆盖层（边框、LIVE 标签、随 `whipIntensity` 加深的红色暗角与内发光）。
   礼花配色、浮动文案描边色取自风格包。渲染大象真实横纵位移 `(x, y, z)`、三维旋转与浮动碰撞文案。
 - **过载甩飞机制（`raceSim.ts` + `RaceScreen.tsx`）**：
   玩家高速连击使大象加速倍率接近或等于上限（`boost >= 1.55`）时，全屏边缘触发快闪红色呼吸氛围灯警告并浮现"差不多得了，别太抽了！"提示；若持续过载超过连续 3 秒，驭象师被大象甩下象背，判定该玩家对局失败并在结算中标记置底。
@@ -120,4 +124,4 @@ React 集成注意事项：三处 three 画布（大厅预览、具象化、赛�
   供 `scripts/screenshot.mjs` 按风格截图目视验证，不需要多人流程。
 - `scripts/e2e-p2p.mjs`：起 `wrangler dev` + `vite`，三个浏览器上下文访问 `/play` 真实绘制三部位，
   断言 DataChannel 全部直连、三端名次一致、中途加入者候场。
-- `tests/`：`recognize`（含象鼻分离三例）、`metrics`、`gait`、`raceSim`、`style`（注册表 / 校验器 / `$player` / 缓存键）、`sequencer`（度数转频率 / 全部内置乐谱可编译 / 休止延音）。
+- `tests/`：`recognize`（含象鼻分离三例）、`metrics`、`gait`、`raceSim`、`style`（注册表 / 校验器 / `$player` / 缓存键）、`sequencer`（度数转频率 / 全部内置乐谱可编译 / 休止延音）、`facePip`（脸变体轮选 / 序号缓存键判定 / 画中画布局边界）。

@@ -36,7 +36,7 @@ src/
 │   ├── elephantMesh.ts 识别模型 → THREE.Group（躯干、颈头、象鼻分节、象牙、扇耳、四条连杆腿、尾巴、象毯、大象车件附件库、驭象师与附件库、表情档位、挥鞭骨骼、抛飞姿态）
 │   ├── environment.ts  按风格包声明构建天空/雾/灯光/地面/跑道/栅栏/终点门/礼花筒/云朵，并铺设装饰物
 │   ├── props.ts        装饰物库：palm / roundTree / bush / rock / temple / torana / bunting / lantern / lamppost / flag / mountain / hill / highwayLamp / roadSign / boxCar / boxTruck
-│   ├── raceScene.ts    赛道场景、自身追踪视角、第一人称自由转头、甩飞特写与出局观战相机、冲线礼花筒粒子
+│   ├── raceScene.ts    赛道场景、自身追踪视角、第一人称自由转头、甩飞特写与出局观战相机、冲线礼花筒粒子、右下角面部直播画中画（第二相机 + 剪裁视口）
 │   └── birthScene.ts   检阅展台（落地冲击、失衡踉跄反馈、平衡恢复庆祝、全自由 360° 环视；preview 模式供大厅预览）
 ├── screens/        LobbyScreen / DrawScreen / useDrawCanvas / BirthScreen / WaitingScreen / RaceScreen
 │   ├── StyleSelector.tsx 风格芯片滑动行 + 展台实时预览样板象
@@ -77,7 +77,7 @@ src/
    - `elephantAccessories[]`（可选，`ELEPHANT_ACCESSORIES`）：`{ kind, materials? }`，kind ∈ `headlights, taillights, mirrors, plate, hubcaps, bumper`；内部材质槽位 `lamp / signal / tailLamp / chrome / plate / tire / mirror`（见 `three/elephantMesh.ts`），可用 `materials` 逐槽覆盖
    - `rider.materials`（`RIDER_SLOTS`）：`skin, hair, headwear, jewel, jacket, pants, boots, whipStick, whipLash`
    - `rider.accessories`（`RIDER_ACCESSORIES` 任选）：`turban, helmet, visor, cap, plume, mustache, beard, bindi, sash, curlyHair, seat, steeringWheel`（`seat` 取 `headwear` 槽颜色，`steeringWheel` 取 `whipStick` 槽颜色）
-   - `rider.face`（可选）：`{ calm, tense?, furious? }` 三档头部材质，连点强度 >0.2 切 `tense`、>0.7 或被甩飞切 `furious`，缺省档沿用上一档；不给则头部用 `skin`
+   - `rider.face`（可选）：`{ calm, tense?, furious? }` 三档头部材质，连点强度 >0.2 切 `tense`、>0.7 或被甩飞切 `furious`，缺省档沿用上一档；不给则按 `skin` 颜色自动生成默认三档脸（`variant: "$player"`，深肤色自动用浅色线条）
    - `environment`：`sky`（纯色或 `{top,bottom}` 渐变）、`fog`、`lights`、`ground`、`lane`、`fence`、`gate{pole, bannerColors, cannon}`、`confettiColors`、`clouds`、`props[]`
    - `props[].kind`（`PROP_KINDS`）：`palm, roundTree, bush, rock, temple, torana, bunting, lantern, lamppost, flag, mountain, hill, highwayLamp, roadSign, boxCar, boxTruck`；每种装饰物内部的材质槽位名见 `three/props.ts`（如 `temple` 的 `wall / dome / trim`、`boxCar` 的 `body / glass / tire / lamp / tailLamp`、`roadSign` 的 `post / face`），可用 `materials` 逐槽覆盖
    - `birth`：`disc`、`ring`、`backdrop`（CSS background）、`lights`
@@ -86,7 +86,8 @@ src/
    - `sfx`（`SFX_IDS`）：`whip, impact, fanfare, blast, buckedOff, countdown, go, uiTap`，每项 `{ synth?: 预设名, file?, gain? }`；预设（`SYNTH_PRESETS`）：`whipCrack, dholHit, tablaTak, thud, brassFanfare, shehnaiFanfare, boom, slideWhistle, trumpetTrunk, tick, goBlast, click, hornHonk, engineRev, tireScreech, crash`
 3. 材质描述 `MaterialSpec`：`color`（可写 `"$player"` 取玩家身份色）、`texture`（`{kind:"image", url}` 或 `{kind:"procedural", recipe}`）、`repeat`、`roughness`、`metalness`、`emissive`、`unlit`、`opacity`。
    程序化配方 `recipe.type`：`solid, stripes, spots, noise, wrinkle, checker, paisley, mandala, grid, fringe, road, face, label`。
-   `road`（沥青路面：u 为行车方向，路缘实线 + `lanes` 车道间虚线）、`face`（卡通脸贴在头球正前方 +x，`mood` ∈ `calm / angry / grit`，可加 `sweat` 汗滴）、`label`（圆形或矩形标牌：底色 + 环 + 居中文字，用于限速牌与车牌）。
+   `road`（沥青路面：u 为行车方向，路缘实线 + `lanes` 车道间虚线）、`face`（卡通脸贴在头球正前方 +x，`mood` ∈ `calm / angry / grit`，`variant` ∈ 0 闷闷 / 1 八字胡 / 2 乐呵 / 3 困倦 或 `"$player"` 按玩家序号轮选，`skin` 可给数组按序号取色，可加 `sweat` 汗滴）、`label`（圆形或矩形标牌：底色 + 环 + 居中文字，用于限速牌与车牌）。
+   按序号变化的脸（`variant: "$player"` 或 `skin` 数组）会以「玩家色 + 序号」为缓存键，四位玩家各得一张贴图。
 4. 程序化乐谱 `ProceduralTrack`：`bpm`、`root`（Hz）、`scale`（半音偏移数组）、`drums`（十六分音符网格，字符 `K/S/h/H/T/t/.`，长度为 16 的倍数）、`melody`（八分音符，音阶度数，`-100` 休止）、`bass`（每项一拍）、`melodyInstrument` / `bassInstrument`（`pluck, lead, drone, bass, bell, square`）、`drone`、`swing`、`gain`。
 5. 可选音频文件放 `public/styles/<id>/music/` 并提交到仓库，运行 `npm test` 让 `tests/style.test.ts` 与 `tests/sequencer.test.ts` 校验，再 `node scripts/screenshot.mjs <id>` 目视验证。
 
