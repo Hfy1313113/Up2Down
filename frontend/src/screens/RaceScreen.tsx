@@ -421,7 +421,7 @@ export function RaceScreen({ demo = false }: { demo?: boolean }) {
             </div>
           </div>
           {/* 失败横幅放在底部，避免遮住画面上半区正在升天的骑手 */}
-          <div className="absolute bottom-6 sm:bottom-10 left-1/2 -translate-x-1/2 z-30 pointer-events-none bg-red-700/95 border-3 border-white text-white p-3 sm:p-5 rounded-2xl shadow-[0_0_40px_rgba(185,28,28,0.95)] text-center animate-bounce w-[92vw] max-w-sm">
+          <div className="absolute bottom-5 left-3 sm:left-6 z-30 pointer-events-none bg-red-700/95 border-3 border-white text-white p-3 sm:p-4 rounded-2xl shadow-[0_0_40px_rgba(185,28,28,0.95)] text-center animate-bounce w-[80vw] max-w-xs">
             <div className="text-4xl mb-1">🐎💨💫</div>
             <div className="text-xl sm:text-2xl font-black text-amber-300">颠飞下马！游戏失败！</div>
             <div className="text-xs sm:text-sm text-slate-100 mt-1">战马第二人称回眸：四肢狂暴大风车，彻底飞出银河系！</div>

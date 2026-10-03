@@ -50,5 +50,26 @@ ok(last(b, "room_state")?.host === "p2" && last(b, "room_state")?.players.length
 
 b.ws.close();
 await sleep(200);
+
+// 满员：第 5 人加入应收到 error{for:"join"} 且连接被服务端关闭（客户端据此立即失败）
+const FULL = `ws://localhost:8787/rooms/full42-${Date.now() % 100000}`;
+const fullClient = (name) => {
+  const ws = new WebSocket(FULL);
+  const c = { ws, msgs: [], closed: false };
+  ws.onmessage = (ev) => c.msgs.push(JSON.parse(ev.data));
+  ws.onclose = () => { c.closed = true; };
+  ws.onopen = () => ws.send(JSON.stringify({ t: "join", name }));
+  return c;
+};
+const members = [];
+for (let i = 0; i < 4; i++) { members.push(fullClient(`成员${i}`)); await sleep(150); }
+const fifth = fullClient("第五人");
+await sleep(500);
+const err = fifth.msgs.find(m => m.t === "error");
+ok(err?.for === "join" && /满/.test(err.msg), "满员加入回 error{for:join}");
+ok(fifth.closed, "满员加入后服务端关闭连接");
+ok(!fifth.msgs.some(m => m.t === "joined"), "满员加入不分配 id");
+for (const m of members) m.ws.close();
+await sleep(200);
 console.log(log.join("\n"));
 process.exit();
