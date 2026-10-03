@@ -263,7 +263,7 @@ export function BirthScreen({ demo = false }: { demo?: boolean }) {
         <button
           disabled={!canEnter}
           onClick={finish}
-          className="primary px-5 py-1.5 sm:py-2 text-xs sm:text-sm font-bold border-2 border-[#233140] rounded-lg shadow-[3px_3px_0_#233140] active:translate-x-0.5 active:translate-y-0.5 disabled:cursor-not-allowed transition-all"
+          className="primary px-5 py-1.5 sm:py-2 text-xs sm:text-sm font-bold text-white bg-[#2ea043] hover:bg-[#278839] border-2 border-[#233140] rounded-lg shadow-[3px_3px_0_#233140] active:translate-x-0.5 active:translate-y-0.5 disabled:bg-slate-300 disabled:border-slate-400 disabled:text-slate-500 disabled:shadow-[2px_2px_0_#94a3b8] disabled:cursor-not-allowed transition-all"
         >
           {canEnter ? "确认出栏起跑 🏁" : `检阅中 (${remain}s)`}
         </button>
