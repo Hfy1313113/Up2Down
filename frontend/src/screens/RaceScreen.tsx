@@ -1,8 +1,9 @@
 // RaceScreen.tsx —— 赛跑/结算屏（three.js 版）：
 // 真实 3D 场景消费 raceSim 状态（积分确定性在 raceSim，不在此处），
-// 第三人称跟随相机 + 第一人称马儿视角（V 键/按钮切换）、3-2-1-GO、全屏连点加速抽鞭、名次结算、房主"再来一局"。
-// 支持加速上限过载检测：若持续接近或达到加速上限，发出全屏快闪红色呼吸氛围灯警告并提醒“差不多得了，别太颠了！”；
-// 超过连续 3 秒仍在上限时，小人颠飞下马出局，游戏失败。
+// 第三人称跟随相机 + 第一人称象背视角（V 键/按钮切换）、3-2-1-抽、全屏连点挥鞭、名次结算、房主"再来一局"。
+// 加速上限过载检测：持续贴近上限时全屏红色呼吸灯警告「差不多得了，别太抽了！」；
+// 连续 3 秒仍在上限则驭象师被甩下象背出局。
+// 正赛背景音乐、倒数/挥鞭/出局/结算音效全部来自当前风格包。
 import { useEffect, useRef, useState, useCallback } from "react";
 import {
   createRace,
@@ -18,7 +19,10 @@ import {
 import { RaceScene, type ViewMode } from "../three/raceScene";
 import { useGame, playAgain } from "../state/game";
 import { transport } from "../net/transport";
-import { getAudioCtx } from "./audio";
+import { getPack } from "../style/registry";
+import { playSfx, playPreset } from "../audio/sfx";
+import { music } from "../audio/music";
+import { AudioToggle } from "./AudioToggle";
 
 interface WhipPop {
   id: number;
@@ -38,87 +42,36 @@ interface RankEntry {
 // 非房主本地模拟结束后最多等待房主权威结算的时长；超时（房主掉线等）则用本地名次兜底
 const RESULT_WAIT_MS = 8000;
 
-function playWhipSound() {
-  try {
-    const audioCtx = getAudioCtx();
-    if (!audioCtx) return;
-    const t0 = audioCtx.currentTime;
-    const noise = audioCtx.createBufferSource();
-    const buf = audioCtx.createBuffer(1, 1200, 22050);
-    const d = buf.getChannelData(0);
-    for (let j = 0; j < d.length; j++) d[j] = (Math.random() * 2 - 1) * Math.exp(-j / 180);
-    noise.buffer = buf;
-    const gain = audioCtx.createGain();
-    gain.gain.setValueAtTime(0.28, t0);
-    gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.07);
-    noise.connect(gain).connect(audioCtx.destination);
-    noise.start(t0);
-  } catch {}
-}
-
-function playBlastSound() {
-  try {
-    const audioCtx = getAudioCtx();
-    if (!audioCtx) return;
-    const t0 = audioCtx.currentTime;
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.type = "triangle";
-    osc.frequency.setValueAtTime(170, t0);
-    osc.frequency.exponentialRampToValueAtTime(26, t0 + 0.45);
-    gain.gain.setValueAtTime(0.4, t0);
-    gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.5);
-    osc.connect(gain).connect(audioCtx.destination);
-    osc.start(t0);
-    osc.stop(t0 + 0.52);
-  } catch {}
-}
-
-function playBuckedOffSound() {
-  try {
-    const audioCtx = getAudioCtx();
-    if (!audioCtx) return;
-    const t0 = audioCtx.currentTime;
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.type = "sawtooth";
-    osc.frequency.setValueAtTime(450, t0);
-    osc.frequency.linearRampToValueAtTime(820, t0 + 0.12);
-    osc.frequency.exponentialRampToValueAtTime(55, t0 + 0.55);
-    gain.gain.setValueAtTime(0.35, t0);
-    gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.6);
-    osc.connect(gain).connect(audioCtx.destination);
-    osc.start(t0);
-    osc.stop(t0 + 0.62);
-  } catch {}
-}
+const WHIP_TEXTS = ["抽！象！💥", "快象加鞭！🐘", "象前冲！⚡", "万象更新！✨", "抽象起来！🔥", "具象化加速！💨"];
+const RANK_TITLES = ["冠军【抽象派大师】", "亚军【印象派】", "季军【具象派】", "殿军【盲人摸象】"];
 
 export function RaceScreen({ demo = false }: { demo?: boolean }) {
   const g = useGame();
+  const pack = getPack(g.styleId);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [countdown, setCountdown] = useState<string | null>(null);
   const [result, setResult] = useState<{
     name: string;
-    crossed: boolean;   // 第一名是否真正撞线（否则按距离判定）
+    crossed: boolean;
     list: { name: string; time: string; failed?: boolean }[];
   } | null>(null);
-  const [spectating, setSpectating] = useState(false);     // 本人已出局且抛飞动画播完 → 观战
-  const [awaitingHost, setAwaitingHost] = useState(false); // 本地模拟已结束，等待房主权威结算
+  const [spectating, setSpectating] = useState(false);
+  const [awaitingHost, setAwaitingHost] = useState(false);
   const spectatingRef = useRef(false);
   const resultShownRef = useRef(false);
   const [view, setView] = useState<ViewMode>("third");
   const viewRef = useRef(view);
   viewRef.current = view;
   const raceRef = useRef<RaceState | null>(null);
-  const [boostRatio, setBoostRatio] = useState(0); // [0, 1]
+  const [boostRatio, setBoostRatio] = useState(0);
   const [dangerSec, setDangerSec] = useState(0);
   const [buckedOff, setBuckedOff] = useState(false);
   const buckedOffSoundPlayed = useRef(false);
   const [whipPops, setWhipPops] = useState<WhipPop[]>([]);
   const popSeq = useRef(0);
+  const lastTrumpet = useRef(0);
 
   const iAmHost = demo || (g.host != null && g.host === g.myId);
-  // rAF 闭包内需要读到最新的房主身份（房主中途掉线会移交）
   const hostRef = useRef(iAmHost);
   hostRef.current = iAmHost;
   const hostIdRef = useRef(g.host);
@@ -131,7 +84,8 @@ export function RaceScreen({ demo = false }: { demo?: boolean }) {
     if (resultShownRef.current) return;
     resultShownRef.current = true;
     setAwaitingHost(false);
-    playBlastSound();
+    playSfx("blast");
+    music.duck(0.35);
     const winner = rank.find(r => !r.failed);
     setResult({
       name: winner ? winner.name : "无人完赛",
@@ -140,7 +94,7 @@ export function RaceScreen({ demo = false }: { demo?: boolean }) {
         name: r.name,
         failed: r.failed,
         time: r.failed
-          ? "（颠飞坠马 · 游戏失败）"
+          ? "（甩下象背 · 象征性出局）"
           : r.finishTime != null
           ? `（${r.finishTime.toFixed(1)} 秒）`
           : "（未完赛）",
@@ -154,14 +108,17 @@ export function RaceScreen({ demo = false }: { demo?: boolean }) {
     const meRunner = raceRef.current.runners.find(r => r.id === myRunnerId);
     if (meRunner?.buckedOff || meRunner?.failed) return;
 
-    // 播放清脆的挥鞭抽打音效
-    playWhipSound();
-
+    playSfx("whip");
     raceRef.current = applyTapBoost(raceRef.current, myRunnerId);
 
     const me = raceRef.current.runners.find(r => r.id === myRunnerId);
     if (me) {
       setBoostRatio((me.boost - 1.0) / (MAX_BOOST - 1.0));
+      // 抽得够猛时大象扬鼻长鸣（节流 1.6s）
+      if (me.boost >= 1.4 && performance.now() - lastTrumpet.current > 1600) {
+        lastTrumpet.current = performance.now();
+        playPreset("trumpetTrunk", 0.7);
+      }
       transport.send({
         t: "elephant_boost",
         id: myRunnerId,
@@ -173,8 +130,7 @@ export function RaceScreen({ demo = false }: { demo?: boolean }) {
     const x = clientX ?? (window.innerWidth / 2 + (Math.random() - 0.5) * 80);
     const y = clientY ?? (window.innerHeight * 0.52 + (Math.random() - 0.5) * 60);
     const id = ++popSeq.current;
-    const texts = ["啪！抽鞭！💨", "加速！⚡", "飙起来！🔥", "驾！🐎", "快马加鞭！🏇"];
-    const text = texts[id % texts.length];
+    const text = WHIP_TEXTS[id % WHIP_TEXTS.length];
     setWhipPops(p => [...p.slice(-4), { id, x, y, text }]);
     setTimeout(() => {
       setWhipPops(p => p.filter(item => item.id !== id));
@@ -186,17 +142,11 @@ export function RaceScreen({ demo = false }: { demo?: boolean }) {
       // `_from` 由传输层按到达通道标注：加速/出局只接受本人发出，结算只接受房主发出
       const self = msg._from == null || msg._from === msg.id;
       if (msg.t === "elephant_boost" && raceRef.current && self) {
-        raceRef.current = setRunnerBoost(
-          raceRef.current,
-          msg.id as string,
-          msg.boost as number,
-          msg.whip as number
-        );
+        raceRef.current = setRunnerBoost(raceRef.current, msg.id as string, msg.boost as number, msg.whip as number);
       } else if (msg.t === "elephant_bucked_off" && raceRef.current && self) {
         raceRef.current = setRunnerBuckedOff(raceRef.current, msg.id as string);
       } else if (msg.t === "race_result" && Array.isArray(msg.rank)) {
         if (msg._from != null && msg._from !== hostIdRef.current) return;
-        // 房主广播的权威名次：无论本地模拟是否结束都以此为准
         showResult(msg.rank as RankEntry[]);
       }
     });
@@ -205,24 +155,23 @@ export function RaceScreen({ demo = false }: { demo?: boolean }) {
 
   useEffect(() => {
     const canvas = canvasRef.current!;
-    const list = (g.elephants ?? []).map((h, i) => ({
-      id: h.id,
-      name: h.name,
-      model: h.model,
-      color: ["#e2604f", "#4d8de2", "#59b56b", "#e8a13c"][i % 4],
-    }));
-    const scene = new RaceScene(canvas, list, myIndex);
+    const list = (g.elephants ?? []).map(h => ({ id: h.id, name: h.name, model: h.model }));
+    const scene = new RaceScene(canvas, list, myIndex, pack);
     const onResize = () => scene.resize();
     window.addEventListener("resize", onResize);
 
     const race = createRace(list.map(l => ({ id: l.id, name: l.name, model: l.model })));
     raceRef.current = race;
 
+    // 正赛背景音乐：倒数一开始就起播
+    void music.play(pack.music.race, `${pack.id}:race`);
+    music.duck(1);
+
     let raf = 0;
     let last = 0;
     let cancelled = false;
     let demoAiTimer = 0;
-    let localOverAt: number | null = null;   // 非房主本地模拟结束的时间戳（等待权威结算起点）
+    let localOverAt: number | null = null;
     const timers: ReturnType<typeof setTimeout>[] = [];
 
     const frame = (now: number) => {
@@ -230,7 +179,7 @@ export function RaceScreen({ demo = false }: { demo?: boolean }) {
       const dt = last ? Math.min((now - last) / 1000, 0.05) : 0;
       last = now;
 
-      // 开发态 demo 模式下给 AI 马注入微加速，呈现动态对抗
+      // 开发态 demo 模式下给 AI 大象注入微加速，呈现动态对抗
       if (demo && raceRef.current && !raceRef.current.over) {
         demoAiTimer += dt;
         if (demoAiTimer > 0.25) {
@@ -246,36 +195,28 @@ export function RaceScreen({ demo = false }: { demo?: boolean }) {
       raceRef.current = updateRace(raceRef.current!, dt);
       scene.render(raceRef.current, viewRef.current, dt);
 
-      // 同步自身马匹状态（加速增益、上限过载与颠飞出局）
       const me = raceRef.current.runners.find(r => r.id === myRunnerId);
       if (me) {
         setBoostRatio((me.boost - 1.0) / (MAX_BOOST - 1.0));
         setDangerSec(me.dangerDuration);
-        if (me.buckedOff) {
-          if (!buckedOffSoundPlayed.current) {
-            buckedOffSoundPlayed.current = true;
-            setBuckedOff(true);
-            playBuckedOffSound();
-            transport.send({
-              t: "elephant_bucked_off",
-              id: myRunnerId,
-            });
-          }
+        if (me.buckedOff && !buckedOffSoundPlayed.current) {
+          buckedOffSoundPlayed.current = true;
+          setBuckedOff(true);
+          playSfx("buckedOff");
+          music.duck(0.45);
+          transport.send({ t: "elephant_bucked_off", id: myRunnerId });
         }
       }
 
-      // 自己被颠飞且抛飞动画播完 → 转为观战（镜头跟随领跑者），不提前结算
       if (me?.buckedOff && me.interactionTimer <= 0 && !spectatingRef.current) {
         spectatingRef.current = true;
         setSpectating(true);
       }
 
-      // 已展示结算（例如先收到了房主广播的 race_result）→ 停止循环
       if (resultShownRef.current) return;
 
       if (raceRef.current.over) {
         if (hostRef.current) {
-          // 房主：本地名次即权威名次，广播给全员后展示
           const rank: RankEntry[] = ranking(raceRef.current).map(r => ({
             id: r.id, name: r.name, failed: r.failed, finishTime: r.finishTime,
           }));
@@ -283,7 +224,6 @@ export function RaceScreen({ demo = false }: { demo?: boolean }) {
           showResult(rank);
           return;
         }
-        // 非房主：等待房主的 race_result；超时（房主掉线且未移交到自己）用本地名次兜底
         if (localOverAt == null) {
           localOverAt = now;
           setAwaitingHost(true);
@@ -297,12 +237,13 @@ export function RaceScreen({ demo = false }: { demo?: boolean }) {
       raf = requestAnimationFrame(frame);
     };
 
-    const seq = ["3", "2", "1", "开跑！"];
+    const seq = ["3", "2", "1", "抽！"];
     let i = 0;
     const tick = () => {
       if (cancelled) return;
       if (i < seq.length) {
         setCountdown(seq[i]);
+        playSfx(i === seq.length - 1 ? "go" : "countdown");
         i++;
         timers.push(setTimeout(tick, i === seq.length ? 650 : 800));
       } else {
@@ -319,6 +260,7 @@ export function RaceScreen({ demo = false }: { demo?: boolean }) {
       window.removeEventListener("resize", onResize);
       cancelAnimationFrame(raf);
       scene.dispose();
+      music.duck(1);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -329,7 +271,6 @@ export function RaceScreen({ demo = false }: { demo?: boolean }) {
         setView(v => v === "first" ? "third" : "first");
       } else if (e.code === "Space" || e.key === " " || e.key === "Spacebar") {
         e.preventDefault();
-        // 键盘按空格挥鞭加速
         handleBoostTap();
       }
     };
@@ -338,13 +279,11 @@ export function RaceScreen({ demo = false }: { demo?: boolean }) {
   }, [handleBoostTap]);
 
   const onPointerDown = (e: React.PointerEvent) => {
-    // 忽略点击右上角视角切换按钮或结算弹窗时的加速
-    if ((e.target as HTMLElement).closest(".race-view-btns") || (e.target as HTMLElement).closest(".race-banner")) return;
-    // 点击屏幕任意位置挥鞭加速
+    const el = e.target as HTMLElement;
+    if (el.closest(".race-view-btns") || el.closest(".race-banner") || el.closest(".audio-toggle")) return;
     handleBoostTap(e.clientX, e.clientY);
   };
 
-  const rankTitles = ["冠军【极限拟合】", "亚军【虽瘫犹荣】", "季军【医学奇迹】", "殿军【跑道太滑】"];
   const boostPercent = Math.round(boostRatio * 60);
   const currentRunner = raceRef.current?.runners.find(r => r.id === myRunnerId);
   const isDangerZone = dangerSec > 0.05 || (currentRunner ? currentRunner.boost >= DANGER_BOOST_THRESHOLD : boostRatio >= 0.92);
@@ -353,26 +292,28 @@ export function RaceScreen({ demo = false }: { demo?: boolean }) {
     <div className="fixed inset-0 w-full h-full overflow-hidden select-none touch-manipulation" onPointerDown={onPointerDown}>
       <canvas ref={canvasRef} className="w-full h-full block" />
 
-      {/* 极速上限过载：全屏边缘快闪红色呼吸氛围灯警告 */}
       {isDangerZone && !buckedOff && !countdown && !result && (
         <div className="danger-ambient-pulse fixed inset-0 pointer-events-none z-25" />
       )}
 
-      {/* 赛前倒数与开跑横向居中自适应展示（坚决防止手机端压缩成竖排文字） */}
       {countdown && (
         <div className="absolute top-[36%] left-1/2 -translate-x-1/2 -translate-y-1/2 z-40 pointer-events-none flex items-center justify-center w-full px-4">
-          <div className="text-6xl sm:text-8xl md:text-9xl font-black text-[#e2703a] whitespace-nowrap select-none text-center leading-none tracking-wider drop-shadow-[0_6px_24px_rgba(255,255,255,0.98)] animate-pulse">
+          <div className="text-6xl sm:text-8xl md:text-9xl font-black text-(--ui-accent) whitespace-nowrap select-none text-center leading-none tracking-wider drop-shadow-[0_6px_24px_rgba(255,255,255,0.98)] animate-pulse">
             {countdown}
           </div>
         </div>
       )}
 
-      {/* 视角切换按钮组（颠飞后隐藏以专注第二人称回放） */}
+      {/* 左上：音频开关 */}
+      <div className="absolute top-3 left-3 z-20">
+        <AudioToggle compact />
+      </div>
+
       {!buckedOff && (
         <div className="race-view-btns absolute top-3 right-3 flex flex-wrap gap-1.5 sm:gap-2 z-20">
           <button
             className={`px-2.5 py-1 sm:px-3.5 sm:py-1.5 text-xs sm:text-sm font-bold border-2 rounded-lg transition-all ${
-              view === "third" ? "bg-[#e2703a] text-white border-[#233140]" : "bg-[#233140]/90 text-white border-white/80"
+              view === "third" ? "bg-(--ui-accent) text-white border-(--ui-ink)" : "bg-(--ui-ink)/90 text-white border-white/80"
             }`}
             onClick={() => setView("third")}
           >
@@ -380,56 +321,52 @@ export function RaceScreen({ demo = false }: { demo?: boolean }) {
           </button>
           <button
             className={`px-2.5 py-1 sm:px-3.5 sm:py-1.5 text-xs sm:text-sm font-bold border-2 rounded-lg transition-all ${
-              view === "first" ? "bg-[#e2703a] text-white border-[#233140]" : "bg-[#233140]/90 text-white border-white/80"
+              view === "first" ? "bg-(--ui-accent) text-white border-(--ui-ink)" : "bg-(--ui-ink)/90 text-white border-white/80"
             }`}
             onClick={() => setView("first")}
           >
-            第一人称 (V)
+            象背视角 (V)
           </button>
         </div>
       )}
 
-      {/* 极速超载提醒横幅：差不多得了，别太颠了！ */}
       {isDangerZone && !buckedOff && !countdown && !result && (
         <div className="absolute top-14 sm:top-16 left-1/2 -translate-x-1/2 z-30 pointer-events-none flex flex-col items-center animate-bounce w-[92vw] max-w-sm">
           <div className="bg-red-600/95 border-2 border-white text-white font-black text-sm sm:text-base px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-xl shadow-[0_0_25px_rgba(239,68,68,0.95)] flex items-center justify-center gap-1.5 text-center">
             <span className="text-lg">🚨</span>
-            <span>差不多得了，别太颠了！</span>
+            <span>差不多得了，别太抽了！</span>
           </div>
           <div className="mt-1 bg-black/85 text-amber-300 text-xs font-mono font-bold px-3 py-0.5 rounded-full border border-red-500/60 shadow">
-            颠簸过载预警：{(Math.max(0, 3.0 - dangerSec)).toFixed(1)}s 后将被马儿颠飞！
+            过载预警：{(Math.max(0, 3.0 - dangerSec)).toFixed(1)}s 后将被大象甩下象背！
           </div>
         </div>
       )}
 
-      {/* 出局观战 / 等待房主结算 的状态提示 */}
       {!result && (spectating || awaitingHost) && (
         <div className="absolute top-3.5 left-1/2 -translate-x-1/2 z-30 pointer-events-none w-[92vw] max-w-xs text-center">
           <div className="inline-block bg-slate-900/90 border-2 border-amber-400 text-amber-200 text-xs sm:text-sm font-bold px-3.5 py-1.5 rounded-xl shadow-xl">
-            {awaitingHost ? "全场完赛，等待房主结算…" : "你已出局 · 观战中，等待全场完赛"}
+            {awaitingHost ? "全场完赛，等待房主结算…" : "你已象征性出局 · 观战中，等待全场完赛"}
           </div>
         </div>
       )}
 
-      {/* 颠飞下马出局：第二人称动画特写、震感速线与战马回望视界（抛飞动画播完后转入观战） */}
       {buckedOff && !spectating && !result && (
         <>
           <div className="buckoff-comic-overlay fixed inset-0 pointer-events-none z-20" />
           <div className="absolute top-3.5 left-1/2 -translate-x-1/2 z-30 pointer-events-none flex flex-col items-center gap-1 w-[92vw] max-w-xs">
             <div className="bg-slate-900/95 border-2 border-amber-400 text-amber-300 text-xs sm:text-sm font-black px-3.5 py-1.5 rounded-xl shadow-xl flex items-center gap-2">
               <span className="text-base">🎥</span>
-              <span>第二人称战马视角</span>
+              <span>第二人称象视角</span>
               <span className="bg-red-600 text-white text-[10px] px-1.5 py-0.5 rounded font-mono font-bold animate-pulse">REC</span>
             </div>
             <div className="text-[11px] sm:text-xs text-slate-100 bg-black/80 border border-white/20 px-3 py-1 rounded-full shadow text-center">
-              战马回眸：我就静静看着你螺旋升天…
+              大象回眸扬鼻：我就静静看着你螺旋升天…
             </div>
           </div>
-          {/* 失败横幅放在底部，避免遮住画面上半区正在升天的骑手 */}
           <div className="absolute bottom-5 left-3 sm:left-6 z-30 pointer-events-none bg-red-700/95 border-3 border-white text-white p-3 sm:p-4 rounded-2xl shadow-[0_0_40px_rgba(185,28,28,0.95)] text-center animate-bounce w-[80vw] max-w-xs">
-            <div className="text-4xl mb-1">🐎💨💫</div>
-            <div className="text-xl sm:text-2xl font-black text-amber-300">颠飞下马！游戏失败！</div>
-            <div className="text-xs sm:text-sm text-slate-100 mt-1">战马第二人称回眸：四肢狂暴大风车，彻底飞出银河系！</div>
+            <div className="text-4xl mb-1">🐘💨💫</div>
+            <div className="text-xl sm:text-2xl font-black text-amber-300">甩下象背！抽得太狠了！</div>
+            <div className="text-xs sm:text-sm text-slate-100 mt-1">大象第二人称回眸：四肢狂暴大风车，彻底飞出抽象派！</div>
           </div>
         </>
       )}
@@ -437,11 +374,11 @@ export function RaceScreen({ demo = false }: { demo?: boolean }) {
       {!countdown && !result && !buckedOff && (
         <>
           <div className="absolute bottom-24 sm:bottom-28 left-1/2 -translate-x-1/2 w-[92vw] max-w-xs sm:max-w-sm text-center text-xs sm:text-sm font-bold bg-black/65 text-white px-3.5 py-1.5 rounded-full pointer-events-none backdrop-blur-xs border border-white/20 shadow-lg">
-            👆 连续点击屏幕 或 敲击空格 抽打马鞭加速！
+            👆 连续点击屏幕 或 敲击空格 挥鞭抽象加速！
           </div>
           <div className="absolute bottom-3 sm:bottom-6 left-1/2 -translate-x-1/2 w-[92vw] max-w-xs sm:max-w-sm bg-slate-900/90 border-2 border-amber-500 rounded-2xl p-2.5 sm:p-3.5 flex flex-col items-center gap-1.5 shadow-2xl pointer-events-none z-20 backdrop-blur-xs">
             <div className="text-amber-400 text-xs sm:text-sm font-extrabold flex items-center justify-between w-full px-1">
-              <span>🔥 挥鞭加速: +{boostPercent}%</span>
+              <span>🔥 抽象加速: +{boostPercent}%</span>
               <span className="text-[11px] text-slate-400 font-normal">(上限 +60%)</span>
             </div>
             <div className="w-full h-3 sm:h-3.5 bg-slate-800 rounded-full overflow-hidden border border-white/30">
@@ -457,12 +394,12 @@ export function RaceScreen({ demo = false }: { demo?: boolean }) {
             </div>
             <div className="text-[11px] sm:text-xs text-slate-300 font-bold">
               {isDangerZone
-                ? "⚠️ 严重颠簸！即将被颠飞！"
+                ? "⚠️ 抽得太狠！即将被甩下象背！"
                 : boostRatio > 0.8
-                ? "⚡ 狂暴冲刺！"
+                ? "⚡ 狂暴冲刺！象鼻朝天！"
                 : boostRatio > 0.4
-                ? "💨 抽打加速中！"
-                : "连点越快，抽得越狠，跑得越快！"}
+                ? "💨 抽象加速中！"
+                : "连点越快，抽得越狠，象跑得越快！"}
             </div>
           </div>
         </>
@@ -474,42 +411,39 @@ export function RaceScreen({ demo = false }: { demo?: boolean }) {
         </div>
       ))}
 
-      {/* 竞速结算弹窗：动态炸裂弹出动效 + 冲击波粒子光环 */}
       {result && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/60 backdrop-blur-sm pointer-events-auto overflow-hidden">
-          {/* 炸裂冲击波光环 */}
           <div className="banner-blast-shockwave absolute w-64 h-64 rounded-full border-4 border-amber-400 pointer-events-none" />
           <div className="banner-blast-shockwave absolute w-48 h-48 rounded-full border-2 border-red-500 pointer-events-none" />
 
-          {/* 动态炸裂弹出的卡片主体 */}
-          <div className="race-banner animate-banner-blast w-full max-w-sm sm:max-w-md bg-white border-4 border-[#233140] rounded-2xl p-4 sm:p-7 shadow-[10px_10px_0_rgba(35,49,64,0.95)] text-center max-h-[90vh] overflow-y-auto relative z-10">
-            <h2 className="text-2xl sm:text-3xl font-black text-[#233140] mb-2 flex items-center justify-center gap-2">
+          <div className="race-banner animate-banner-blast w-full max-w-sm sm:max-w-md bg-(--ui-paper) border-4 border-(--ui-ink) rounded-2xl p-4 sm:p-7 shadow-[10px_10px_0_var(--ui-ink)] text-center max-h-[90vh] overflow-y-auto relative z-10">
+            <h2 className="text-2xl sm:text-3xl font-black text-(--ui-ink) mb-2 flex items-center justify-center gap-2">
               <span>💥</span>
-              <span>竞速结算</span>
+              <span>抽象结算</span>
               <span>💥</span>
             </h2>
-            <p className="text-slate-600 text-xs sm:text-sm mb-3">
+            <p className="text-(--ui-ink) opacity-80 text-xs sm:text-sm mb-3">
               {result.name !== "无人完赛" ? (
                 <>
-                  <b className="text-[#e2703a] font-black">{result.name}</b>
-                  {result.crossed ? " 率先撞线，物理连杆动力学决胜！" : " 跑得最远，按距离判定夺冠！"}
+                  <b className="text-(--ui-accent) font-black">{result.name}</b>
+                  {result.crossed ? " 率先撞线，抽象派连杆动力学决胜！" : " 跑得最远，按距离判定夺冠！"}
                 </>
               ) : (
-                <span className="text-red-600 font-bold">全员颠飞下马，无人生还！</span>
+                <span className="text-red-600 font-bold">全员甩下象背，无人生还，抽象到家！</span>
               )}
             </p>
             <ol className="list-none p-0 my-3 flex flex-col gap-2 text-left">
               {result.list.map((r, i) => (
                 <li
                   key={i}
-                  className={`py-2 px-3 rounded-lg border-b border-dashed border-slate-200 text-xs sm:text-sm font-semibold flex items-center justify-between ${
-                    r.failed ? "bg-red-50 text-red-700 border-red-200" : "text-slate-800"
+                  className={`py-2 px-3 rounded-lg border-b border-dashed border-(--ui-ink)/20 text-xs sm:text-sm font-semibold flex items-center justify-between ${
+                    r.failed ? "bg-red-50 text-red-700 border-red-200" : "text-(--ui-ink)"
                   }`}
                 >
                   <span>
-                    {r.failed ? "【颠飞坠马】" : (rankTitles[i] ?? `第 ${i + 1} 名`)} {r.name}
+                    {r.failed ? "【象征性出局】" : (RANK_TITLES[i] ?? `第 ${i + 1} 名`)} {r.name}
                   </span>
-                  <span className="text-xs font-mono text-slate-500">
+                  <span className="text-xs font-mono opacity-70">
                     {r.time}
                   </span>
                 </li>
@@ -517,10 +451,10 @@ export function RaceScreen({ demo = false }: { demo?: boolean }) {
             </ol>
             {iAmHost && (
               <button
-                onClick={playAgain}
-                className="primary w-full py-2.5 sm:py-3 px-4 rounded-lg border-2 border-[#233140] bg-[#2ea043] hover:bg-[#278839] text-white font-bold text-sm sm:text-base shadow-[3px_3px_0_#233140] active:translate-x-0.5 active:translate-y-0.5 transition-all mt-2"
+                onClick={() => { playSfx("uiTap"); playAgain(); }}
+                className="primary w-full py-2.5 sm:py-3 px-4 rounded-lg border-2 border-(--ui-ink) bg-(--ui-go) hover:bg-(--ui-go-hover) text-white font-bold text-sm sm:text-base shadow-[3px_3px_0_var(--ui-ink)] active:translate-x-0.5 active:translate-y-0.5 transition-all mt-2"
               >
-                重回大厅 (再来一局)
+                重回象限 (再来一局)
               </button>
             )}
           </div>
@@ -529,4 +463,3 @@ export function RaceScreen({ demo = false }: { demo?: boolean }) {
     </div>
   );
 }
-

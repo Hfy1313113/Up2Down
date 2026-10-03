@@ -1,22 +1,36 @@
 @import "tailwindcss";
 
 /* 全局样式：手绘线框与草稿工作台质感。
+   配色全部来自 CSS 变量（由 style/theme.ts 按当前风格包写入 :root），
+   JSX 里的 Tailwind 工具类只引用变量（如 bg-(--ui-accent)），风格切换即时生效。
    注意：Tailwind v4 的工具类位于 @layer utilities；任何「未分层」的元素/类选择器都会在层叠中
    压过工具类（与权重无关）。因此这里不写 button / input / h1 等元素级样式，
    自定义规则全部放进 @layer base / components，组件的外观由 JSX 上的工具类决定。 */
+
+:root {
+  --ui-accent: #d9480f;
+  --ui-accent-hover: #b83c0a;
+  --ui-ink: #3b1f0e;
+  --ui-paper: #fff8ec;
+  --ui-bg: #f6dfb6;
+  --ui-bg-pattern: radial-gradient(#e4b56e 1.4px, transparent 1.4px), radial-gradient(circle at 50% 50%, #f9e8c6, #f1d3a2);
+  --ui-go: #138808;
+  --ui-go-hover: #0f6b06;
+  --ui-canvas-paper: #fff9ee;
+  --ui-canvas-grid: rgba(190, 120, 60, 0.26);
+}
 
 @layer base {
   * { box-sizing: border-box; }
   body {
     margin: 0;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-    background-color: #e4edf3;
-    background-image:
-      radial-gradient(#b8c9d6 1.2px, transparent 1.2px),
-      linear-gradient(#dce8f0, #e8f0f6);
+    background-color: var(--ui-bg);
+    background-image: var(--ui-bg-pattern);
     background-size: 20px 20px, 100% 100%;
     min-height: 100vh;
-    color: #233140;
+    color: var(--ui-ink);
+    transition: background-color 0.4s ease, color 0.4s ease;
   }
   #root {
     min-height: 100vh;
@@ -39,11 +53,11 @@
 @layer components {
   /* 仅 demo 加载占位使用 */
   .screen {
-    background: #ffffff;
-    border: 2px solid #233140;
+    background: var(--ui-paper);
+    border: 2px solid var(--ui-ink);
     border-radius: 10px;
     padding: 16px 14px;
-    box-shadow: 4px 4px 0 rgba(35, 49, 64, 0.9);
+    box-shadow: 4px 4px 0 var(--ui-ink);
     max-width: 1040px;
     width: 100%;
     text-align: center;
@@ -52,17 +66,15 @@
 
   /* 画板：草稿纸网格背景（canvas 本身透明，网格由 CSS 提供） */
   .draw-canvas {
-    background-color: #fcfbf7;
+    background-color: var(--ui-canvas-paper);
     background-image:
-      linear-gradient(rgba(180, 170, 155, 0.28) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(180, 170, 155, 0.28) 1px, transparent 1px),
-      linear-gradient(rgba(180, 170, 155, 0.12) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(180, 170, 155, 0.12) 1px, transparent 1px);
-    background-size: 80px 80px, 80px 80px, 16px 16px, 16px 16px;
-    box-shadow: inset 0 0 30px rgba(180, 165, 140, 0.18);
+      linear-gradient(var(--ui-canvas-grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--ui-canvas-grid) 1px, transparent 1px);
+    background-size: 80px 80px, 80px 80px;
+    box-shadow: inset 0 0 30px rgba(120, 90, 60, 0.14);
   }
 
-  /* 赛跑：抽鞭浮字 */
+  /* 赛跑：抽象浮字 */
   .race-whip-pop {
     position: absolute;
     pointer-events: none;
@@ -79,7 +91,7 @@
     animation: danger-screen-pulse 0.5s infinite ease-in-out;
   }
 
-  /* 第二人称颠飞：漫画速线与动感冲击光效 */
+  /* 第二人称甩飞：漫画速线与动感冲击光效 */
   .buckoff-comic-overlay {
     background: radial-gradient(circle, transparent 40%, rgba(220, 38, 38, 0.25) 85%, rgba(185, 28, 28, 0.6) 100%);
     box-shadow: inset 0 0 60px 20px rgba(220, 38, 38, 0.45);
@@ -93,6 +105,22 @@
   .banner-blast-shockwave {
     animation: banner-shockwave 0.85s ease-out forwards;
   }
+
+  /* 风格选择器：横向滑动芯片行，隐藏滚动条 */
+  .style-strip {
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x mandatory;
+  }
+  .style-strip::-webkit-scrollbar { display: none; }
+  .style-chip { scroll-snap-align: center; }
+
+  /* 法务/介绍页正文排版 */
+  .prose-page h2 { font-size: 1.15rem; font-weight: 900; margin: 1.4rem 0 0.5rem; }
+  .prose-page h3 { font-size: 1rem; font-weight: 800; margin: 1rem 0 0.35rem; }
+  .prose-page p, .prose-page li { font-size: 0.92rem; line-height: 1.7; }
+  .prose-page ul { padding-left: 1.2rem; margin: 0.3rem 0 0.8rem; list-style: disc; }
+  .prose-page a { color: var(--ui-accent); font-weight: 700; text-decoration: underline; }
 }
 
 @keyframes whip-float {

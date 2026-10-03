@@ -1,5 +1,6 @@
 // useDrawCanvas.ts —— 分部位手绘画布 Hook：
-// 腿部 / 头部 / 屁股 各自独立笔画、撤销与清空；躯干自动生成无需绘制。
+// 象腿 / 象头 / 象臀 各自独立笔画、撤销与清空；躯干自动生成无需绘制。
+// 每个部位提供浅虚线引导轮廓，玩家可描边也可自由发挥；识别层只看笔画，不看引导线。
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Recognize } from "../game/recognize";
 import type { ElephantModel, PartStrokes, Stroke, Vec2 } from "../game/types";
@@ -7,7 +8,7 @@ import type { ElephantModel, PartStrokes, Stroke, Vec2 } from "../game/types";
 export const LOGICAL_W = 960, LOGICAL_H = 640;
 export const PARTS = ["legs", "head", "butt"] as const;
 export type Part = (typeof PARTS)[number];
-export const PART_LABEL: Record<Part, string> = { legs: "腿部", head: "头部", butt: "屁股" };
+export const PART_LABEL: Record<Part, string> = { legs: "象腿", head: "象头", butt: "象臀" };
 
 export function useDrawCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -42,9 +43,12 @@ export function useDrawCanvas() {
     for (const s of strokes) drawStroke(s);
     if (current) drawStroke(current);
 
-    // 参考躯干虚线与免绘高亮提示（加粗大号虚线与高对比度标贴）
+    // 参考躯干虚线与免绘高亮提示（主题色从 CSS 变量读取，随风格包变化）
+    const css = getComputedStyle(document.documentElement);
+    const accent = css.getPropertyValue("--ui-accent").trim() || "#e2703a";
     ctx.save();
-    ctx.strokeStyle = "rgba(226, 112, 58, 0.9)";
+    ctx.strokeStyle = accent;
+    ctx.globalAlpha = 0.9;
     ctx.lineWidth = 14;
     ctx.setLineDash([20, 14]);
     ctx.beginPath();
@@ -52,25 +56,53 @@ export function useDrawCanvas() {
     ctx.lineTo(LOGICAL_W * 0.80, LOGICAL_H * 0.42);
     ctx.stroke();
     ctx.setLineDash([]);
+    ctx.globalAlpha = 1;
 
     // 躯干免绘大号胶囊标贴
     const torsoTagW = 600, torsoTagH = 48;
     const torsoTagX = LOGICAL_W * 0.5 - torsoTagW / 2;
     const torsoTagY = LOGICAL_H * 0.42 - 60;
-    ctx.fillStyle = "rgba(255, 247, 237, 0.98)";
-    ctx.strokeStyle = "#ea580c";
+    ctx.fillStyle = "rgba(255, 250, 240, 0.98)";
+    ctx.strokeStyle = accent;
     ctx.lineWidth = 4;
     ctx.beginPath();
     ctx.roundRect(torsoTagX, torsoTagY, torsoTagW, torsoTagH, 24);
     ctx.fill();
     ctx.stroke();
-    ctx.fillStyle = "#c2410c";
+    ctx.fillStyle = accent;
     ctx.font = "bold 23px sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText("⚠️ 躯干由系统自动生成，玩家绝对无需绘制躯干！", LOGICAL_W * 0.5, torsoTagY + torsoTagH / 2);
+    ctx.fillText("⚠️ 象身躯干由系统自动生成，不用画！专心抽象其他部位", LOGICAL_W * 0.5, torsoTagY + torsoTagH / 2);
 
-    // 当前部位专属绘制指导范围框（大号高对比度徽章标贴 + 加粗清晰虚线框）
+    // 浅虚线引导轮廓：可描边、可无视。颜色随部位区域。
+    const guide = (color: string, width = 3) => {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = width;
+      ctx.setLineDash([9, 9]);
+      ctx.lineCap = "round";
+    };
+    const zoneTag = (x: number, y: number, w: number, fill: string, text: string) => {
+      ctx.setLineDash([]);
+      ctx.fillStyle = fill;
+      ctx.beginPath();
+      ctx.roundRect(x, y, w, 46, 10);
+      ctx.fill();
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 22px sans-serif";
+      ctx.textAlign = "left";
+      ctx.textBaseline = "middle";
+      ctx.fillText(text, x + 10, y + 23);
+    };
+    const hint = (x: number, y: number, color: string, text: string) => {
+      ctx.setLineDash([]);
+      ctx.fillStyle = color;
+      ctx.font = "bold 17px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(text, x, y);
+    };
+
     if (part === "legs") {
       const zx = LOGICAL_W * 0.16, zy = LOGICAL_H * 0.45, zw = LOGICAL_W * 0.68, zh = LOGICAL_H * 0.48;
       ctx.fillStyle = "rgba(34, 197, 94, 0.1)";
@@ -79,18 +111,27 @@ export function useDrawCanvas() {
       ctx.lineWidth = 6;
       ctx.setLineDash([16, 10]);
       ctx.strokeRect(zx, zy, zw, zh);
-      ctx.setLineDash([]);
+      zoneTag(zx + 14, zy + 14, 640, "#15803d", "📍【第 1 步·象腿】：画 4 条带膝弯的粗腿，沿浅虚线描边或自由发挥");
 
-      const pillW = 520, pillH = 46;
-      ctx.fillStyle = "#15803d";
-      ctx.beginPath();
-      ctx.roundRect(zx + 14, zy + 14, pillW, pillH, 10);
-      ctx.fill();
-      ctx.fillStyle = "#ffffff";
-      ctx.font = "bold 22px sans-serif";
-      ctx.textAlign = "left";
-      ctx.textBaseline = "middle";
-      ctx.fillText("📍【第 1 步·腿部范围】：从躯干向下画 4 条长腿", zx + 24, zy + 14 + pillH / 2);
+      // 四条粗腿的浅虚线轮廓：两条平行线 + 膝弯 + 圆足
+      guide("rgba(22, 163, 74, 0.38)");
+      const topY = LOGICAL_H * 0.42 + 12, kneeY = zy + zh * 0.52, footY = zy + zh * 0.90;
+      const half = 20;
+      for (const fx of [0.2, 0.38, 0.62, 0.8]) {
+        const x = zx + zw * fx;
+        const bend = fx < 0.5 ? -12 : 12;   // 后腿膝盖向前、前腿向后微弯
+        for (const sgn of [-1, 1]) {
+          ctx.beginPath();
+          ctx.moveTo(x + sgn * half, topY);
+          ctx.lineTo(x + sgn * half + bend, kneeY);
+          ctx.lineTo(x + sgn * (half + 3), footY);
+          ctx.stroke();
+        }
+        ctx.beginPath();
+        ctx.ellipse(x, footY + 6, half + 6, 10, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      hint(zx + zw * 0.5, zy + zh - 22, "rgba(21, 128, 61, 0.85)", "每条腿一笔画完：从躯干向下，经膝盖弯折到脚底；越抽象越好笑");
     } else if (part === "head") {
       const zx = LOGICAL_W * 0.54, zy = LOGICAL_H * 0.06, zw = LOGICAL_W * 0.40, zh = LOGICAL_H * 0.42;
       ctx.fillStyle = "rgba(59, 130, 246, 0.1)";
@@ -99,46 +140,36 @@ export function useDrawCanvas() {
       ctx.lineWidth = 6;
       ctx.setLineDash([16, 10]);
       ctx.strokeRect(zx, zy, zw, zh);
-      ctx.setLineDash([]);
+      zoneTag(zx + 14, zy + 14, 360, "#1d4ed8", "📍【第 2 步·象头】：脖子、象头、大扇耳、象鼻");
 
-      const pillW = 420, pillH = 46;
-      ctx.fillStyle = "#1d4ed8";
-      ctx.beginPath();
-      ctx.roundRect(zx + 14, zy + 14, pillW, pillH, 10);
-      ctx.fill();
-      ctx.fillStyle = "#ffffff";
-      ctx.font = "bold 22px sans-serif";
-      ctx.textAlign = "left";
-      ctx.textBaseline = "middle";
-      ctx.fillText("📍【第 2 步·头部范围】：画马脖子与头耳", zx + 24, zy + 14 + pillH / 2);
-
-      // 脖子引导虚线：从躯干参考线前端 → 头部参考圈（明确「从哪接、画多大」）
       const torsoFrontX = LOGICAL_W * 0.80, torsoY = LOGICAL_H * 0.42;
-      const headHintX = zx + zw * 0.52, headHintY = zy + zh * 0.42, headHintR = 34;
-      ctx.save();
-      ctx.strokeStyle = "rgba(37, 99, 235, 0.65)";
-      ctx.lineWidth = 4;
-      ctx.setLineDash([10, 8]);
+      const hx = zx + zw * 0.50, hy = zy + zh * 0.50, hr = 46;
+      guide("rgba(37, 99, 235, 0.42)");
+      // 脖子：从躯干前端接到头
       ctx.beginPath();
       ctx.moveTo(torsoFrontX, torsoY);
-      ctx.quadraticCurveTo(torsoFrontX + 30, torsoY - 70, headHintX - headHintR * 0.7, headHintY + headHintR * 0.4);
+      ctx.quadraticCurveTo(torsoFrontX + 24, torsoY - 60, hx - hr * 0.6, hy + hr * 0.5);
       ctx.stroke();
+      // 头
       ctx.beginPath();
-      ctx.arc(headHintX, headHintY, headHintR, 0, Math.PI * 2);
+      ctx.arc(hx, hy, hr, 0, Math.PI * 2);
       ctx.stroke();
-      // 双耳小提示
-      for (const sgn of [-1, 1]) {
-        ctx.beginPath();
-        ctx.moveTo(headHintX - 10 + sgn * 8, headHintY - headHintR + 4);
-        ctx.lineTo(headHintX - 14 + sgn * 10, headHintY - headHintR - 16);
-        ctx.stroke();
-      }
-      ctx.setLineDash([]);
-      ctx.fillStyle = "rgba(37, 99, 235, 0.8)";
-      ctx.font = "bold 17px sans-serif";
-      ctx.textAlign = "center";
-      ctx.fillText("脖子沿虚线接躯干，圈画头，尖画耳", headHintX, headHintY + headHintR + 22);
-      ctx.restore();
+      // 大扇耳：头后上方的大椭圆
+      ctx.beginPath();
+      ctx.ellipse(hx - hr * 0.95, hy - hr * 0.25, 34, 48, -0.25, 0, Math.PI * 2);
+      ctx.stroke();
+      // 象鼻：从头前下方垂下并回卷
+      ctx.beginPath();
+      ctx.moveTo(hx + hr * 0.75, hy + hr * 0.35);
+      ctx.bezierCurveTo(hx + hr * 1.5, hy + hr * 0.9, hx + hr * 1.6, hy + hr * 2.0, hx + hr * 1.15, hy + hr * 2.4);
+      ctx.quadraticCurveTo(hx + hr * 0.95, hy + hr * 2.5, hx + hr * 0.9, hy + hr * 2.25);
+      ctx.stroke();
+      // 象牙小提示
+      ctx.beginPath();
+      ctx.moveTo(hx + hr * 0.55, hy + hr * 0.55);
+      ctx.quadraticCurveTo(hx + hr * 0.95, hy + hr * 0.75, hx + hr * 1.1, hy + hr * 0.5);
+      ctx.stroke();
+      hint(hx, zy + zh - 16, "rgba(37, 99, 235, 0.85)", "脖子接躯干，圈画头，扇形画耳，长线垂鼻；想抽象就别管虚线");
     } else if (part === "butt") {
       const zx = LOGICAL_W * 0.06, zy = LOGICAL_H * 0.18, zw = LOGICAL_W * 0.36, zh = LOGICAL_H * 0.50;
       ctx.fillStyle = "rgba(249, 115, 22, 0.1)";
@@ -147,39 +178,28 @@ export function useDrawCanvas() {
       ctx.lineWidth = 6;
       ctx.setLineDash([16, 10]);
       ctx.strokeRect(zx, zy, zw, zh);
-      ctx.setLineDash([]);
+      zoneTag(zx + 14, zy + 14, 330, "#c2410c", "📍【第 3 步·象臀】：臀线与细尾巴");
 
-      const pillW = 380, pillH = 46;
-      ctx.fillStyle = "#c2410c";
-      ctx.beginPath();
-      ctx.roundRect(zx + 14, zy + 14, pillW, pillH, 10);
-      ctx.fill();
-      ctx.fillStyle = "#ffffff";
-      ctx.font = "bold 22px sans-serif";
-      ctx.textAlign = "left";
-      ctx.textBaseline = "middle";
-      ctx.fillText("📍【第 3 步·屁股范围】：画臀线与尾巴", zx + 24, zy + 14 + pillH / 2);
-
-      // 尾巴引导虚线：从躯干参考线后端 → 向左下甩出（明确尾巴从哪长出来）
       const torsoRearX = LOGICAL_W * 0.20, torsoY = LOGICAL_H * 0.42;
-      ctx.save();
-      ctx.strokeStyle = "rgba(194, 65, 12, 0.65)";
-      ctx.lineWidth = 4;
-      ctx.setLineDash([10, 8]);
+      guide("rgba(194, 65, 12, 0.42)");
+      // 臀线：从躯干后端上方绕到下方的大弧
       ctx.beginPath();
-      ctx.moveTo(torsoRearX, torsoY);
-      ctx.quadraticCurveTo(zx + zw * 0.62, torsoY + 20, zx + zw * 0.40, zy + zh * 0.62);
+      ctx.moveTo(torsoRearX + 10, torsoY - 60);
+      ctx.bezierCurveTo(torsoRearX - 70, torsoY - 50, torsoRearX - 80, torsoY + 60, torsoRearX + 6, torsoY + 78);
+      ctx.stroke();
+      // 细尾巴：从臀部中后方甩出，尾尖带穗
+      const tx = torsoRearX - 36, ty = torsoY + 6;
+      ctx.beginPath();
+      ctx.moveTo(tx, ty);
+      ctx.quadraticCurveTo(tx - 60, ty + 30, tx - 70, ty + 110);
       ctx.stroke();
       ctx.beginPath();
-      ctx.moveTo(zx + zw * 0.40, zy + zh * 0.62);
-      ctx.lineTo(zx + zw * 0.33, zy + zh * 0.62 + 18);
+      ctx.moveTo(tx - 70, ty + 110);
+      ctx.lineTo(tx - 82, ty + 128);
+      ctx.moveTo(tx - 70, ty + 110);
+      ctx.lineTo(tx - 58, ty + 128);
       ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.fillStyle = "rgba(194, 65, 12, 0.85)";
-      ctx.font = "bold 17px sans-serif";
-      ctx.textAlign = "center";
-      ctx.fillText("臀线贴躯干后端，尾巴沿虚线甩出", zx + zw * 0.5, zy + zh * 0.62 + 44);
-      ctx.restore();
+      hint(zx + zw * 0.5, zy + zh - 16, "rgba(194, 65, 12, 0.85)", "臀线贴躯干后端画弧，细尾巴沿虚线甩出");
     }
     ctx.restore();
 
@@ -190,8 +210,8 @@ export function useDrawCanvas() {
       const scale = 1.6, bx = LOGICAL_W / 2, by = LOGICAL_H * 0.78;
       ctx.translate(bx, by); ctx.scale(scale, -scale);
       ctx.translate(0, model.torso.cy);
-      ctx.strokeStyle = "#e2703a";
-      ctx.fillStyle = "#e2703a";
+      ctx.strokeStyle = accent;
+      ctx.fillStyle = accent;
       ctx.lineWidth = 2;
       ctx.setLineDash([5, 4]);
       const T = model.torso;

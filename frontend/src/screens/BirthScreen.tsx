@@ -1,11 +1,12 @@
-// BirthScreen.tsx —— 小马检阅仪式（three.js 版）：
+// BirthScreen.tsx —— 具象化仪式（three.js 版）：
 // 落地冲击、双足踉跄物理反馈、恢复平衡、庆祝彩带与号角、自由 360° 检阅与生物力学检定报告。
+// 展台外观与音效来自当前风格包。
 import { useEffect, useRef, useState } from "react";
 import { BirthScene } from "../three/birthScene";
 import { useGame, sendDone } from "../state/game";
-import { COLORS } from "../game/raceSim";
 import type { ElephantModel } from "../game/types";
-import { getAudioCtx } from "./audio";
+import { getPack } from "../style/registry";
+import { playSfx } from "../audio/sfx";
 
 const OBSERVE_SECONDS = 15;
 
@@ -21,94 +22,39 @@ function getAppraisal(model: ElephantModel | null) {
   ratioAvg = nLegs > 0 ? ratioAvg / nLegs : 1;
   lenAvg = nLegs > 0 ? lenAvg / nLegs : 120;
 
-  let title = "非对称手搓纯种";
+  let title = "非对称手搓抽象象";
   let trait = "四肢独立驱动，各足相位各自为政";
   let grade = "Class-C 神经协调存疑";
-  let docComment = "物理引擎会诊意见：极易在奔跑中出现左前蹄踩右后蹄";
+  let docComment = "物理引擎会诊意见：极易在奔跑中出现左前足踩右后足，鼻子还可能绊到自己";
 
   if (model.quality < 0.8) {
-    title = "代偿性拼装体";
+    title = "代偿性拼装象";
     trait = "有效腿数不足，已由系统加装 0.7 效率代偿假肢";
     grade = "Class-D 严重肢体缺损";
-    docComment = "出厂质检警告：建议赛道两侧备齐千斤顶与起重机";
+    docComment = "出厂质检警告：建议赛道两侧备齐千斤顶与起重机，这头象很抽象";
   } else if (ratioAvg > 1.45) {
-    title = "高抬腿长杠杆体";
+    title = "高抬腿长杠杆象";
     trait = "股骨过长，膝关节折角接近机械干涉极限";
     grade = "Class-B 连杆干涉超标";
     docComment = "力学诊断：单步跨幅极大，但单摆惯量易导致迎面扑街";
   } else if (ratioAvg < 0.75) {
-    title = "超高频短力臂机体";
+    title = "超高频短力臂象";
     trait = "小腿力臂极短，步态阻尼与惯性几乎为零";
     grade = "Class-B 谐振震颤体";
     docComment = "运动学诊断：步频突破极限，有效位移主要依赖地面共振";
   } else if (lenAvg > 175) {
-    title = "超高重心悬挂体";
+    title = "超高重心悬挂象";
     trait = "四肢纵向尺寸超标，重心高耸，迎风面积巨大";
     grade = "Class-B 倾覆高危";
     docComment = "稳定性判定：横风阻力与转弯力矩过大，冲线需防侧翻";
   } else {
-    title = "1.05:1 黄金拟合型";
+    title = "1.05:1 黄金拟合象";
     trait = "大腿与小腿比例高度贴合理论最优传动阻抗";
     grade = "Class-S 动力学特优";
-    docComment = "检定结论：力学结构严密，在一众抽象机体中格格不入";
+    docComment = "检定结论：力学结构严密，在一众抽象象体中格格不入，反而最抽象";
   }
 
   return { title, trait, grade, docComment };
-}
-
-// ---------- 物理触地撞击音效 ----------
-function playImpact() {
-  try {
-    const audioCtx = getAudioCtx();
-    if (!audioCtx) return;
-    const t0 = audioCtx.currentTime;
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.type = "sine";
-    osc.frequency.setValueAtTime(140, t0);
-    osc.frequency.exponentialRampToValueAtTime(32, t0 + 0.12);
-    gain.gain.setValueAtTime(0.35, t0);
-    gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.15);
-    osc.connect(gain).connect(audioCtx.destination);
-    osc.start(t0);
-    osc.stop(t0 + 0.16);
-  } catch { /* 音频不可用时静默 */ }
-}
-
-// ---------- 胜利号角音效（WebAudio 合成） ----------
-function fanfare() {
-  try {
-    const audioCtx = getAudioCtx();
-    if (!audioCtx) return;
-    const t0 = audioCtx.currentTime;
-    const notes = [523.25, 659.25, 783.99, 1046.5, 783.99, 1046.5, 1318.5];
-    notes.forEach((f, i) => {
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      osc.type = "triangle";
-      osc.frequency.value = f;
-      const t = t0 + i * 0.13;
-      gain.gain.setValueAtTime(0, t);
-      gain.gain.linearRampToValueAtTime(0.22, t + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + (i === notes.length - 1 ? 0.9 : 0.22));
-      osc.connect(gain).connect(audioCtx.destination);
-      osc.start(t);
-      osc.stop(t + 1);
-    });
-    for (let i = 0; i < 5; i++) {
-      const t = t0 + 0.15 + i * 0.28;
-      const noise = audioCtx.createBufferSource();
-      const buf = audioCtx.createBuffer(1, 2205, 22050);
-      const d = buf.getChannelData(0);
-      for (let j = 0; j < d.length; j++) d[j] = (Math.random() * 2 - 1) * (1 - j / d.length);
-      noise.buffer = buf;
-      const g = audioCtx.createGain();
-      g.gain.setValueAtTime(0.25, t);
-      g.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
-      noise.connect(g).connect(audioCtx.destination);
-      noise.start(t);
-    }
-  } catch { /* 音频不可用时静默 */ }
 }
 
 // ---------- 彩带（2D canvas 叠加在 3D 舞台上） ----------
@@ -117,9 +63,8 @@ interface ConfettiPart {
   w: number; h: number; rot: number; vr: number; color: string;
 }
 
-function startConfetti(canvas: HTMLCanvasElement): () => void {
+function startConfetti(canvas: HTMLCanvasElement, colors: string[]): () => void {
   const ctx = canvas.getContext("2d")!;
-  const colors = ["#e2604f", "#4d8de2", "#59b56b", "#e8a13c", "#b06ad4", "#ffe27a"];
   const parts: ConfettiPart[] = [];
   for (let i = 0; i < 160; i++) {
     const fromLeft = i % 2 === 0;
@@ -169,7 +114,7 @@ export function BirthScreen({ demo = false }: { demo?: boolean }) {
   const finishedRef = useRef(false);
 
   const myIndex = Math.max(0, g.players.findIndex(p => p.id === g.myId));
-  const color = COLORS[myIndex % COLORS.length];
+  const pack = getPack(g.styleId);
   const model = g.myModel!;
 
   useEffect(() => {
@@ -179,13 +124,11 @@ export function BirthScreen({ demo = false }: { demo?: boolean }) {
     confCv.height = confCv.clientHeight;
     let stopConfetti = () => {};
 
-    const scene = new BirthScene(canvas, model, color, {
-      onImpact: () => {
-        playImpact();
-      },
+    const scene = new BirthScene(canvas, model, pack, myIndex, {
+      onImpact: () => playSfx("impact"),
       onRecover: () => {
-        fanfare();
-        stopConfetti = startConfetti(confCv);
+        playSfx("fanfare");
+        stopConfetti = startConfetti(confCv, pack.environment.confettiColors);
       },
     });
     scene.attachDrag(stageRef.current!);
@@ -213,59 +156,57 @@ export function BirthScreen({ demo = false }: { demo?: boolean }) {
   const finish = () => {
     if (finishedRef.current) return;
     finishedRef.current = true;
+    playSfx("uiTap");
     if (!demo) sendDone();
   };
 
   const appraisal = getAppraisal(model);
 
   return (
-    <div className="screen birth w-full max-w-4xl mx-auto bg-white border-2 border-[#233140] rounded-xl shadow-[5px_5px_0_rgba(35,49,64,0.9)] p-3 sm:p-5 md:p-7 text-center my-auto flex flex-col gap-2 sm:gap-2.5 transition-all">
-      {/* 顶部标题栏 */}
+    <div className="screen birth w-full max-w-4xl mx-auto bg-(--ui-paper) border-2 border-(--ui-ink) rounded-xl shadow-[5px_5px_0_var(--ui-ink)] p-3 sm:p-5 md:p-7 text-center my-auto flex flex-col gap-2 sm:gap-2.5 transition-all">
       <div className="flex items-center justify-between px-1">
-        <h2 className="text-sm sm:text-lg md:text-xl font-black text-[#233140] tracking-tight">
-          机体装配完成 · 运动学检阅
+        <h2 className="text-sm sm:text-lg md:text-xl font-black text-(--ui-ink) tracking-tight">
+          具象化完成 · 运动学检阅
         </h2>
-        <span className="text-[11px] sm:text-xs text-slate-500 font-medium">
+        <span className="text-[11px] sm:text-xs text-(--ui-ink) opacity-60 font-medium">
           可手指/鼠标拖拽 360° 旋转
         </span>
       </div>
 
-      {/* 3D 展台 */}
       <div
         ref={stageRef}
-        className="birth-stage3d relative w-full h-[220px] sm:h-[300px] md:h-[380px] rounded-lg border-2 border-[#233140] shadow-[3px_3px_0_#233140] overflow-hidden select-none touch-none cursor-grab active:cursor-grabbing bg-gradient-to-b from-[#dae7f2] to-[#edf4f9]"
+        className="birth-stage3d relative w-full h-[220px] sm:h-[300px] md:h-[380px] rounded-lg border-2 border-(--ui-ink) shadow-[3px_3px_0_var(--ui-ink)] overflow-hidden select-none touch-none cursor-grab active:cursor-grabbing"
+        style={{ background: pack.birth.backdrop }}
       >
         <canvas ref={canvasRef} className="birth-canvas3d w-full h-full block" />
         <canvas ref={confRef} className="birth-confetti absolute inset-0 w-full h-full pointer-events-none" />
       </div>
 
-      {/* 体检报告卡片 */}
       {appraisal && (
-        <div className="w-full max-w-lg mx-auto bg-[#fdfcf9] border-2 border-dashed border-slate-600 rounded-lg p-2 sm:p-3 text-left shadow-[2px_2px_0_rgba(71,85,105,0.25)] flex flex-col gap-1 text-xs sm:text-sm">
-          <div className="flex items-center justify-between gap-2 pb-1 border-b border-slate-200">
-            <span className="font-extrabold text-slate-800 font-mono text-xs sm:text-sm truncate">
+        <div className="w-full max-w-lg mx-auto bg-white/70 border-2 border-dashed border-(--ui-ink) rounded-lg p-2 sm:p-3 text-left shadow-[2px_2px_0_var(--ui-ink)] flex flex-col gap-1 text-xs sm:text-sm">
+          <div className="flex items-center justify-between gap-2 pb-1 border-b border-(--ui-ink)/20">
+            <span className="font-extrabold text-(--ui-ink) font-mono text-xs sm:text-sm truncate">
               力学体检：{appraisal.title}
             </span>
-            <span className="bg-slate-900 text-slate-100 text-[10px] sm:text-xs font-bold px-1.5 py-0.5 rounded shrink-0">
+            <span className="bg-(--ui-ink) text-(--ui-paper) text-[10px] sm:text-xs font-bold px-1.5 py-0.5 rounded shrink-0">
               {appraisal.grade}
             </span>
           </div>
-          <div className="text-slate-700 text-[11px] sm:text-xs leading-snug"><b>解剖特征：</b>{appraisal.trait}</div>
-          <div className="text-slate-700 text-[11px] sm:text-xs leading-snug"><b>会诊结论：</b>{appraisal.docComment}</div>
+          <div className="text-(--ui-ink) text-[11px] sm:text-xs leading-snug"><b>解剖特征：</b>{appraisal.trait}</div>
+          <div className="text-(--ui-ink) text-[11px] sm:text-xs leading-snug"><b>会诊结论：</b>{appraisal.docComment}</div>
         </div>
       )}
 
-      {/* 底部放行出栏按钮 */}
       <div className="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-3 mt-0.5">
-        <p className="text-slate-500 text-[11px] sm:text-xs font-medium m-0">
-          {remain > 0 ? `出栏准备中… ${remain}s 后放行` : "关节点校准就绪，随时放行！"}
+        <p className="text-(--ui-ink) opacity-70 text-[11px] sm:text-xs font-medium m-0">
+          {remain > 0 ? `出圈准备中… ${remain}s 后放行` : "关节点校准就绪，随时出圈！"}
         </p>
         <button
           disabled={!canEnter}
           onClick={finish}
-          className="primary px-5 py-1.5 sm:py-2 text-xs sm:text-sm font-bold text-white bg-[#2ea043] hover:bg-[#278839] border-2 border-[#233140] rounded-lg shadow-[3px_3px_0_#233140] active:translate-x-0.5 active:translate-y-0.5 disabled:bg-slate-300 disabled:border-slate-400 disabled:text-slate-500 disabled:shadow-[2px_2px_0_#94a3b8] disabled:cursor-not-allowed transition-all"
+          className="primary px-5 py-1.5 sm:py-2 text-xs sm:text-sm font-bold text-white bg-(--ui-go) hover:bg-(--ui-go-hover) border-2 border-(--ui-ink) rounded-lg shadow-[3px_3px_0_var(--ui-ink)] active:translate-x-0.5 active:translate-y-0.5 disabled:bg-slate-300 disabled:border-slate-400 disabled:text-slate-500 disabled:shadow-[2px_2px_0_#94a3b8] disabled:cursor-not-allowed transition-all"
         >
-          {canEnter ? "确认出栏起跑 🏁" : `检阅中 (${remain}s)`}
+          {canEnter ? "确认出圈起跑 🏁" : `检阅中 (${remain}s)`}
         </button>
       </div>
     </div>

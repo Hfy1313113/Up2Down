@@ -1,11 +1,14 @@
 // game.ts —— 全局游戏状态（阶段机：大厅 → 绘制 → 诞生 → 等待 → 赛跑），
 // 用轻量 external store + useSyncExternalStore，不引入额外状态库。
-// 联机模型：房主客户端为协调者（开赛判定 + 汇总画作），Worker 只做控制面与兜底转发。
+// 联机模型：房主客户端为协调者（开赛判定 + 汇总画作 + 选择风格），Worker 只做控制面与兜底转发。
 import { useSyncExternalStore } from "react";
 import { transport } from "../net/transport";
 import type { LinkState, NetMessage } from "../net/transport";
 import { Recognize } from "../game/recognize";
 import type { ElephantModel, PartStrokes } from "../game/types";
+import { DEFAULT_STYLE_ID, getPack, hasPack } from "../style/registry";
+import { loadPreferredStyle, savePreferredStyle } from "../style/theme";
+import { preloadStyle } from "../style/preload";
 
 export type Phase = "lobby" | "draw" | "birth" | "waiting" | "race";
 /** 服务端广播的本轮状态：idle 大厅 / draw 绘制中 / race 已开赛 */
@@ -36,9 +39,10 @@ interface GameState {
   links: LinkState;
   partLeft: number;          // 当前部位剩余秒
   currentPart: string;
-  myModel: ElephantModel | null;    // 本地识别结果（诞生屏/赛跑用）
+  myModel: ElephantModel | null;    // 本地识别结果（具象化屏/赛跑用）
   myStrokes: PartStrokes | null; // 自己提交的画作
-  elephants: ElephantEntry[] | null;   // race 阶段的全部马
+  elephants: ElephantEntry[] | null;   // race 阶段的全部大象
+  styleId: string;                     // 当前风格包 id（房主选择，全员同步）
   error: string | null;
 }
 
@@ -48,7 +52,9 @@ let state: GameState = {
   phase: "lobby", myName: "", myId: null, room: null, host: null,
   players: [], round: "idle", roundSeq: 0, doneNames: [], links: { p2p: 0, relay: 0 },
   partLeft: PART_SECONDS, currentPart: "legs",
-  myModel: null, myStrokes: null, elephants: null, error: null,
+  myModel: null, myStrokes: null, elephants: null,
+  styleId: (() => { const pref = loadPreferredStyle(); return pref && hasPack(pref) ? pref : DEFAULT_STYLE_ID; })(),
+  error: null,
 };
 
 // 房主侧汇总的画作（不进 React 状态：体积大且渲染不需要）
@@ -105,16 +111,36 @@ export async function join(name: string, room: string): Promise<void> {
 }
 
 export function startGame(): void {
-  transport.notify({ t: "phase_start" });          // 服务端启动超时兜底计时
-  transport.send({ t: "draw_phase" });             // 各端进入绘制阶段
-  enterDrawPhase();
+  transport.notify({ t: "phase_start" });                       // 服务端启动超时兜底计时
+  transport.send({ t: "draw_phase", style: state.styleId });    // 各端进入绘制阶段并锁定本局风格
+  enterDrawPhase(state.styleId);
+}
+
+// ---------- 风格选择（房主选择，全员同步） ----------
+/** 本地切换风格：房主在房间内切换会即时广播给全员；未入房时只影响本机预览与偏好 */
+export function setStyle(id: string): void {
+  if (!hasPack(id) || id === state.styleId) return;
+  if (state.players.length > 0 && !isHost()) return;   // 非房主不能改房间风格
+  applyStyle(id);
+  savePreferredStyle(id);
+  if (state.players.length > 0) transport.send({ t: "style", id });
+}
+function applyStyle(id: string): void {
+  if (!hasPack(id)) return;
+  setState({ styleId: id });
+  preloadStyle(getPack(id));
+}
+/** 房主在成员变化时重发当前风格，让新进房者立即同步 */
+function resyncStyle(): void {
+  if (isHost() && state.players.length > 1) transport.send({ t: "style", id: state.styleId });
 }
 
 // ---------- 绘制阶段 ----------
-export function enterDrawPhase(): void {
+export function enterDrawPhase(styleId?: string): void {
   clearInterval(partTimer!);
   doneIds.clear();
   strokeArchive.clear();
+  if (styleId && hasPack(styleId)) applyStyle(styleId);
   setState({ phase: "draw", doneNames: [], currentPart: "legs", partLeft: PART_SECONDS });
   startPartTimer();
 }
@@ -146,7 +172,7 @@ export function finishCurrentPart(): string | null {
 }
 
 // ---------- 提交与房主协调 ----------
-// 画完三部位：本地识别 → 进入诞生仪式（本端先观赏自己的马）
+// 画完三部位：本地识别 → 进入具象化仪式（本端先检阅自己的大象）
 export function prepareBirth(strokes: PartStrokes, model: ElephantModel): void {
   clearInterval(partTimer!);
   setState({ myStrokes: strokes, myModel: model, phase: "birth" });
@@ -179,9 +205,9 @@ function broadcastRace(): void {
     id: p.id, name: p.name,
     strokes: strokeArchive.get(p.id) ?? null,
   }));
-  transport.send({ t: "race", elephants });
+  transport.send({ t: "race", elephants, style: state.styleId });
   transport.notify({ t: "round_over" });           // 取消服务端超时兜底
-  enterRace({ t: "race", elephants } as NetMessage);
+  enterRace({ t: "race", elephants, style: state.styleId } as NetMessage);
 }
 
 // ---------- 赛跑 ----------
@@ -190,6 +216,7 @@ export function enterRace(msg: NetMessage): void {
   // 自己不在本局名单（中途加入者）：留在大厅等待下一局，不进入赛跑
   if (!elephants.some(h => h.id === transport.id)) return;
   clearInterval(partTimer!);
+  if (typeof msg.style === "string" && hasPack(msg.style)) applyStyle(msg.style);
   const entries: ElephantEntry[] = elephants.map(h => {
     if (h.id === transport.id && state.myModel) return { id: h.id, name: h.name, model: state.myModel };
     const hasStrokes = h.strokes && (h.strokes.legs?.length || h.strokes.head?.length || h.strokes.butt?.length);
@@ -228,6 +255,12 @@ export function wireTransport(): void {
           roundSeq: Number(msg.roundSeq) || 0,
         });
         if (wasDraw) maybeStartRace();
+        resyncStyle();
+        break;
+      }
+      case "style": {
+        // 房主选择的风格：全员同步并预载资源
+        if (fromHost(msg) && typeof msg.id === "string") applyStyle(msg.id);
         break;
       }
       case "done": {
@@ -246,7 +279,7 @@ export function wireTransport(): void {
         break;
       }
       case "draw_phase":
-        if (fromHost(msg)) enterDrawPhase();
+        if (fromHost(msg)) enterDrawPhase(typeof msg.style === "string" ? msg.style : undefined);
         break;
       case "race_timeout": {
         // 服务端兜底：房主据本地汇总开赛，其余端等待 race
