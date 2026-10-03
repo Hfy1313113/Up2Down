@@ -24,7 +24,8 @@ src/
 │   ├── preload.ts     预载风格包的图片贴图与音乐文件
 │   └── packs/
 │       ├── road-rage/ 「腋毛攻击」（默认：驾考宝典路怒动画 × 黑街 DJ 空耳，夜色高速与方块车）
-│       └── bollywood/ 「宝莱坞狂欢」
+│       ├── bollywood/ 「宝莱坞狂欢」
+│       └── milk-baby/ 「神圣奶娃」（奶龙 / 奶蛙 × 牛来 × 胆子肥嘟嘟：奶象、牛来与袋鼠驭象师、堆满跑道的奶娃）
 ├── audio/          # 音频层：机制，不含具体曲目
 │   ├── context.ts     全局唯一 AudioContext + BGM / SFX 两条 GainNode 总线；unlockAudio()
 │   ├── settings.ts    静音 / 音乐音量 / 音效音量（localStorage）
@@ -32,9 +33,9 @@ src/
 │   ├── music.ts       背景音乐播放器：文件优先、回落程序化、文件曲目逐遍播放（结尾渐出、第二遍起渐入）、duck()
 │   └── sfx.ts         音效预设库 + 按风格包事件表播放（playSfx / playPreset）
 ├── three/
-│   ├── elephantMesh.ts 识别模型 → THREE.Group（躯干、颈头、象鼻分节、象牙、扇耳、四条连杆腿、尾巴、象毯、大象车件附件库、驭象师与附件库、表情档位、挥鞭骨骼、抛飞姿态）
+│   ├── elephantMesh.ts 识别模型 → THREE.Group（躯干、颈头、象鼻分节、象牙、扇耳、四条连杆腿、尾巴、象毯、大象附件库（车件 / 大眼 / 肚皮）、驭象师与附件库（含按玩家轮选的附件组）、表情档位、挥鞭骨骼、抛飞姿态）
 │   ├── environment.ts  按风格包声明构建天空/雾/灯光/地面/跑道/栅栏/终点门/礼花筒/云朵，并铺设装饰物
-│   ├── props.ts        装饰物库：palm / roundTree / bush / rock / temple / torana / bunting / lantern / lamppost / flag / mountain / hill / highwayLamp / roadSign / boxCar / boxTruck
+│   ├── props.ts        装饰物库：palm / roundTree / bush / rock / temple / torana / bunting / lantern / lamppost / flag / mountain / hill / highwayLamp / roadSign / boxCar / boxTruck / milkBaby / fuzzyBull / chubbyRoo / milkBottle / billboard
 │   ├── raceScene.ts    赛道场景、自身追踪视角、第一人称自由转头、甩飞特写与出局观战相机、冲线礼花筒粒子、右下角面部直播画中画（第二相机 + 剪裁视口）
 │   └── birthScene.ts   检阅展台（落地冲击、失衡踉跄反馈、平衡恢复庆祝、全自由 360° 环视；preview 模式供大厅预览）
 ├── screens/        LobbyScreen / DrawScreen / useDrawCanvas / BirthScreen / WaitingScreen / RaceScreen
@@ -43,7 +44,7 @@ src/
 ├── pages/          Shell（统一标题栏与页脚）/ Landing / About / Privacy / Terms
 ├── router.ts       极简 pushState 路由（useRoute / navigate）
 ├── state/game.ts   阶段机、房主协调、画作汇总、风格选择与同步
-├── demo/demo.tsx   仅开发态：?demo=draw / birth / race [&style=<id>] 直接用合成模型渲染
+├── demo/demo.tsx   仅开发态：?demo=draw / birth / race [&style=<id>] [&me=<0~3>] 直接用合成模型渲染
 ├── App.tsx         路由 → 页面；阶段 → 屏幕；风格 → CSS 变量 + 音效表；非赛跑阶段背景音乐
 └── main.tsx        入口
 ```
@@ -73,21 +74,22 @@ src/
 1. 新建 `src/style/packs/<id>/index.ts`，`export default defineStylePack({...})`；`id` 必须是小写字母开头的 kebab-case。
 2. 填满以下槽位（常量定义在 `src/style/types.ts`，校验器会在开发态启动时抛错指出缺项）：
    - `elephant`（`ELEPHANT_SLOTS`）：`torso, head, trunk, ear, tusk, thigh, shin, foot, toenail, tail, blanket, eye`
-   - `elephantAccessories[]`（可选，`ELEPHANT_ACCESSORIES`）：`{ kind, materials? }`，kind ∈ `headlights, taillights, mirrors, plate, hubcaps, bumper`；内部材质槽位 `lamp / signal / tailLamp / chrome / plate / tire / mirror`（见 `three/elephantMesh.ts`），可用 `materials` 逐槽覆盖
+   - `elephantAccessories[]`（可选，`ELEPHANT_ACCESSORIES`）：`{ kind, materials? }`，kind ∈ `headlights, taillights, mirrors, plate, hubcaps, bumper, bigEyes, belly`；内部材质槽位 `lamp / signal / tailLamp / chrome / plate / tire / mirror`，`bigEyes` 的 `sclera / iris / pupil / shine`（奶娃式大绿眼，长在头正前上方并盖住默认小眼），`belly` 的 `belly`（躯干前下方 + 下巴的奶白斑）（见 `three/elephantMesh.ts`），可用 `materials` 逐槽覆盖
    - `rider.materials`（`RIDER_SLOTS`）：`skin, hair, headwear, jewel, jacket, pants, boots, whipStick, whipLash`
-   - `rider.accessories`（`RIDER_ACCESSORIES` 任选）：`turban, helmet, visor, cap, plume, mustache, beard, bindi, sash, curlyHair, seat, steeringWheel`（`seat` 取 `headwear` 槽颜色，`steeringWheel` 取 `whipStick` 槽颜色）
+   - `rider.accessories`（`RIDER_ACCESSORIES` 任选）：`turban, helmet, visor, cap, plume, mustache, beard, bindi, sash, curlyHair, seat, steeringWheel, horns, cowEars, muzzle, tallEars, bigNose, belly`（`seat` 取 `headwear` 槽颜色，`steeringWheel` 取 `whipStick` 槽颜色；`cowEars` / `tallEars` 外皮取 `skin`）。每项可以只写名字，也可写 `{ kind, materials }` 逐槽覆盖附件内部材质（`horns` 的 `horn`、`cowEars` / `tallEars` 的 `inner`、`muzzle` 的 `muzzle / nostril`、`bigNose` 的 `nose / shine`、`belly` 的 `belly`）
+   - `rider.accessoriesByPlayer`（可选）：若干附件组，第 i 位玩家额外挂第 `i % length` 组——用于让不同玩家长成不同角色（神圣奶娃：`[["horns","cowEars","muzzle"], ["tallEars","bigNose"]]` → 偶数号牛来、奇数号肥嘟嘟袋鼠）
    - `rider.face`（可选）：`{ calm, tense?, furious? }` 三档头部材质，连点强度 >0.2 切 `tense`、>0.7 或被甩飞切 `furious`，缺省档沿用上一档；不给则按 `skin` 颜色自动生成默认三档脸（`variant: "$player"`，深肤色自动用浅色线条）
    - `environment`：`sky`（纯色或 `{top,bottom}` 渐变）、`fog`、`lights`、`ground`、`lane`、`fence`、`gate{pole, bannerColors, cannon}`、`confettiColors`、`clouds`、`props[]`
-   - `props[].kind`（`PROP_KINDS`）：`palm, roundTree, bush, rock, temple, torana, bunting, lantern, lamppost, flag, mountain, hill, highwayLamp, roadSign, boxCar, boxTruck`；每种装饰物内部的材质槽位名见 `three/props.ts`（如 `temple` 的 `wall / dome / trim`、`boxCar` 的 `body / glass / tire / lamp / tailLamp`、`roadSign` 的 `post / face`），可用 `materials` 逐槽覆盖
+   - `props[].kind`（`PROP_KINDS`）：`palm, roundTree, bush, rock, temple, torana, bunting, lantern, lamppost, flag, mountain, hill, highwayLamp, roadSign, boxCar, boxTruck, milkBaby, fuzzyBull, chubbyRoo, milkBottle, billboard`；每种装饰物内部的材质槽位名见 `three/props.ts`（如 `temple` 的 `wall / dome / trim`、`boxCar` 的 `body / glass / tire / lamp / tailLamp`、`roadSign` 的 `post / face`、`milkBaby` 的 `body / sadBody / belly / paw / iris / mouth / teeth / tongue / tear`、`billboard` 的 `post / face`），可用 `materials` 逐槽覆盖；`props[].variant` 为装饰物内部变体名（`milkBaby`：`smile / laugh / sad / mixed`，`sad` 为流蓝泪的忧郁款）。`milkBaby / fuzzyBull / chubbyRoo / billboard` 以 +x 为正脸建模，铺设时自动转向跑道
    - `birth`：`disc`、`ring`、`backdrop`（CSS background）、`lights`
    - `ui`：`accent, accentHover, ink, paper, bg, bgPattern, go, goHover, canvasPaper, canvasGrid`
    - `music`：`race` 必填，`menu` / `birth` 可选；每条 `{ file?, procedural?, volume?, fadeSec? }`，至少有一个来源；`fadeSec` 为文件曲目每遍结尾渐出与第二遍起渐入的秒数（默认 2.5）
-   - `sfx`（`SFX_IDS`）：`whip, trumpet, impact, fanfare, blast, buckedOff, countdown, go, uiTap`，每项 `{ synth?: 预设名, file?, gain? }`（给了 `file` 仍建议保留 `synth` 作回落；文件放 `public/styles/<id>/sfx/` 并在旁边的 README 记录来源与许可）；预设（`SYNTH_PRESETS`）：`whipCrack, dholHit, tablaTak, thud, brassFanfare, shehnaiFanfare, boom, slideWhistle, trumpetTrunk, tick, goBlast, click, hornHonk, engineRev, tireScreech, crash`
+   - `sfx`（`SFX_IDS`）：`whip, trumpet, impact, fanfare, blast, buckedOff, countdown, go, uiTap`，每项 `{ synth?: 预设名, file?, gain? }`（给了 `file` 仍建议保留 `synth` 作回落；文件放 `public/styles/<id>/sfx/` 并在旁边的 README 记录来源与许可）；预设（`SYNTH_PRESETS`）：`whipCrack, dholHit, tablaTak, thud, brassFanfare, shehnaiFanfare, boom, slideWhistle, trumpetTrunk, tick, goBlast, click, hornHonk, engineRev, tireScreech, crash, squeak（玩具捏响）, giggle（奶声咯咯笑）, boing（弹簧）`
 3. 材质描述 `MaterialSpec`：`color`（可写 `"$player"` 取玩家身份色）、`texture`（`{kind:"image", url}` 或 `{kind:"procedural", recipe}`）、`repeat`、`roughness`、`metalness`、`emissive`、`unlit`、`opacity`。
    程序化配方 `recipe.type`：`solid, stripes, spots, noise, wrinkle, checker, paisley, mandala, grid, fringe, road, face, label`。
-   `road`（沥青路面：u 为行车方向，路缘实线 + `lanes` 车道间虚线）、`face`（卡通脸贴在头球正前方 +x，`mood` ∈ `calm / angry / grit`，`variant` ∈ 0 闷闷 / 1 八字胡 / 2 乐呵 / 3 困倦 或 `"$player"` 按玩家序号轮选，`skin` 可给数组按序号取色，可加 `sweat` 汗滴）、`label`（圆形或矩形标牌：底色 + 环 + 居中文字，用于限速牌与车牌）。
-   按序号变化的脸（`variant: "$player"` 或 `skin` 数组）会以「玩家色 + 序号」为缓存键，四位玩家各得一张贴图。
+   `road`（沥青路面：u 为行车方向，路缘实线 + `lanes` 车道间虚线）、`face`（卡通脸贴在头球正前方 +x，`mood` ∈ `calm / angry / grit`，`species` ∈ `human`（默认）/ `bull`（牛来：半阖不屑眼、粗眉、粉吻上缘）/ `roo`（肥嘟嘟袋鼠：圆白眼黑豆瞳、腮红）或数组按玩家序号轮选，`variant` ∈ 0 闷闷 / 1 八字胡 / 2 乐呵 / 3 困倦（吉祥物脸只用它区分挑眉 / 瞳孔偏向）或 `"$player"` 按玩家序号轮选，`skin` 可给数组按序号取色，可加 `sweat` 汗滴）、`label`（圆形或矩形标牌：底色 + 环 + 居中文字，用于限速牌、车牌与弹幕广告牌；`aspect` 为承载面宽高比，文字按 1/aspect 预压，贴到横牌上不变形；CJK 文字按每字 1.0 em 估宽）。
+   按序号变化的脸（`variant: "$player"`、`skin` 数组或 `species` 数组）会以「玩家色 + 序号」为缓存键，四位玩家各得一张贴图。
 4. 程序化乐谱 `ProceduralTrack`：`bpm`、`root`（Hz）、`scale`（半音偏移数组）、`drums`（十六分音符网格，字符 `K/S/h/H/T/t/.`，长度为 16 的倍数）、`melody`（八分音符，音阶度数，`-100` 休止）、`bass`（每项一拍）、`melodyInstrument` / `bassInstrument`（`pluck, lead, drone, bass, bell, square`）、`drone`、`swing`、`gain`。
-5. 可选音频文件放 `public/styles/<id>/music/` 并提交到仓库，运行 `npm test` 让 `tests/style.test.ts` 与 `tests/sequencer.test.ts` 校验，再 `node scripts/screenshot.mjs <id>` 目视验证。
+5. 可选音频文件放 `public/styles/<id>/music/` 并提交到仓库，运行 `npm test` 让 `tests/style.test.ts` 与 `tests/sequencer.test.ts` 校验，再 `node scripts/screenshot.mjs <id>` 目视验证；按玩家轮选的脸与附件可用 `?demo=race&style=<id>&me=<0~3>` 逐位核对面部画中画。
 
 详见 [ARCHITECTURE.md](ARCHITECTURE.md) 与 [QUICK_START.md](QUICK_START.md)。

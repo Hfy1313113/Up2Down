@@ -43,14 +43,14 @@ npm run dev
 | frontend | `public/styles/<风格id>/music/race.mp3` | 无 | 可选的正赛音乐文件，随仓库一起提交与部署；缺失时回落到风格包内置的程序化乐谱 |
 | signaling | `DRAW_TIMEOUT_MS` | `200000` | 绘制阶段服务端兜底超时（改常量即可） |
 
-风格包本身不是配置项，而是代码：`frontend/src/style/packs/<id>/index.ts`，新增目录即自动注册；默认风格为 `road-rage`（腋毛攻击），
-玩家本机的上次选择保存在 localStorage。
+风格包本身不是配置项，而是代码：`frontend/src/style/packs/<id>/index.ts`，新增目录即自动注册；内置 `road-rage`（腋毛攻击，默认）、
+`bollywood`（宝莱坞狂欢）、`milk-baby`（神圣奶娃），玩家本机的上次选择保存在 localStorage。
 
 ## 测试与验证
 
 ```bash
 cd frontend
-npm test                            # vitest：识别（含象鼻）/ 速度公式 / 步态 / 赛跑积分与碰撞 / 风格包校验 / 程序化音乐编译 / 脸贴图变体与画中画布局（45 例）
+npm test                            # vitest：识别（含象鼻）/ 速度公式 / 步态 / 赛跑积分与碰撞 / 风格包校验 / 程序化音乐编译 / 脸贴图变体与画中画布局（48 例）
 npx tsc --noEmit -p tsconfig.app.json   # 类型检查
 npm run lint                        # oxlint
 npm run build                       # 生产构建
@@ -69,7 +69,8 @@ node scripts/e2e-verify.mjs         # 控制面完整流程与画作不经服务
 node scripts/timeout-verify.mjs     # 超时兜底事件（含房主断线）
 ```
 
-截图脚本通过 `?demo=draw|birth|race&style=<id>`（仅开发态）直接用合成画作渲染，用于目视验证绘制引导线、3D 大象、风格环境与相机。
+截图脚本通过 `?demo=draw|birth|race&style=<id>`（仅开发态）直接用合成画作渲染，用于目视验证绘制引导线、3D 大象、风格环境与相机；
+`?demo=race` 可再加 `&me=<0~3>` 指定自己是第几位玩家，用于核对按玩家序号轮选的脸与附件（如神圣奶娃的牛来 / 肥嘟嘟）。
 
 ## 部署（单个 Worker）
 

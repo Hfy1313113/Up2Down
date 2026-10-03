@@ -5,7 +5,7 @@
 ```bash
 npm install
 npm run dev        # 开发服务器 http://localhost:5173（首页；游戏在 /play）
-npm test           # vitest 单测（45 例）
+npm test           # vitest 单测（48 例）
 npm run lint       # oxlint
 npm run build      # 生产构建 → dist/
 npm run preview    # 预览构建产物
@@ -19,7 +19,7 @@ npx tsc --noEmit -p tsconfig.app.json   # 类型检查
 | 变量 / 文件 | 默认 | 说明 |
 |---|---|---|
 | `VITE_SIGNAL_URL` | 见下 | 一般**不需要设置**：开发态默认 `ws://localhost:8787`，构建产物由 Worker 托管时同源自动推导 |
-| `public/styles/<风格id>/music/race.mp3` | 无 | 可选正赛音乐文件，随仓库提交与部署；缺失时回落到风格包内置程序化乐谱 |
+| `public/styles/<风格id>/music/race.mp3` | 三套内置风格均已放入 | 正赛音乐文件，随仓库提交与部署；缺失或解码失败时回落到风格包内置程序化乐谱 |
 
 在 `frontend/.env.local` 中覆盖即可（该文件不入库）。只有在把前端单独部署到别处
 （例如 Cloudflare Pages）时才需要显式指定 `wss://<Worker 域名>`。
@@ -43,7 +43,8 @@ node scripts/screenshot.mjs bollywood       # 只截指定风格
 ```
 
 脚本自动起 Vite、用 playwright（chromium）访问 `?demo=draw|birth|race&style=<id>` 并截图，
-按文件大小与字节多样性判定非空白，并收集页面错误。
+按文件大小与字节多样性判定非空白，并收集页面错误。手动访问 `?demo=race&style=<id>&me=<0~3>` 可切换「自己」是第几位玩家，
+用于核对按玩家序号轮选的脸与附件（神圣奶娃：偶数号牛来、奇数号肥嘟嘟袋鼠）。
 
 ## 联机端到端验证
 

@@ -49,13 +49,14 @@ lobby ──房主 startGame()──► draw ──三部位画完 prepareBirth(
 ## 风格包层（`src/style/`）
 
 - **契约**（`types.ts`）：`StylePack = { id, name, tagline, swatch, playerColors[4], elephant, elephantAccessories?, rider, environment, birth, ui, music, sfx }`。
-  材质槽位、大象附件名、驭象师附件名、装饰物种类、音效事件与合成预设都是 `as const` 常量，校验器与机制层共用；`rider.face` 为可选的三档表情材质。
+  材质槽位、大象附件名、驭象师附件名、装饰物种类、音效事件与合成预设都是 `as const` 常量，校验器与机制层共用；`rider.face` 为可选的三档表情材质；
+  驭象师附件项为 `RiderAccessorySpec`（名字或 `{ kind, materials }`），`rider.accessoriesByPlayer` 为按玩家序号轮选的附件组；`PropSpec.variant` 为装饰物内部变体名。
 - **注册表**（`registry.ts`）：`import.meta.glob("./packs/*/index.ts", { eager: true })`，每个包过 `validatePack()`；开发态不合法直接抛错，生产态跳过并 console.error。
-  `DEFAULT_STYLE_ID` 优先 `road-rage`（其次 `bollywood`）；`listPacks()` 默认包排最前，其余按 id 排序。本机保存的偏好若指向已移除的包（如旧的 `classic`），`getPack` 回落到默认。
+  `DEFAULT_STYLE_ID` 优先 `road-rage`（其次 `bollywood`）；`listPacks()` 默认包排最前，其余按 id 排序（当前顺序：`road-rage`、`bollywood`、`milk-baby`）。本机保存的偏好若指向已移除的包（如旧的 `classic`），`getPack` 回落到默认。
 - **材质解析**（`materials.ts`）：`MaterialResolver(playerColors)`，`get(spec, playerIndex)` 按「玩家色 + JSON(spec)」缓存；
   `"$player"` 在颜色与程序化配方字符串里统一替换；程序化纹理用确定性伪随机（`seed`）画到 256px Canvas（可指定 128/512），
   `RepeatWrapping` + `repeat`；图片纹理加载失败时 three 保持空贴图，视觉上回落为基础色。一个场景一个解析器，`dispose()` 统一释放。
-  配方含纹样类（条纹 / 斑点 / 噪声 / 皱纹 / 棋盘 / 网格 / 佩斯利 / 曼陀罗 / 流苏）与结构类（`road` 沥青车道线、`face` 卡通脸、`label` 文字标牌）。
+  配方含纹样类（条纹 / 斑点 / 噪声 / 皱纹 / 棋盘 / 网格 / 佩斯利 / 曼陀罗 / 流苏）与结构类（`road` 沥青车道线、`face` 卡通脸（人脸 / 牛来 / 肥嘟嘟袋鼠三个物种，`faceSpecies()` 按玩家序号轮选）、`label` 文字标牌（`aspect` 横牌预压））。
 - **主题**（`theme.ts`）：把 `ui` 十个字段写入 `:root` 的 `--ui-*` 变量并设置 `data-style`；`loadPreferredStyle / savePreferredStyle` 走 localStorage。
 - **预载**（`preload.ts`）：收集所有 `image` 纹理 URL 创建 `Image`，并对三条曲目调用 `preloadTrack()`。
 
@@ -70,7 +71,7 @@ lobby ──房主 startGame()──► draw ──三部位画完 prepareBirth(
   程序化曲目 0.8s 淡入并无缝循环；文件曲目不用 `loop`，而是逐遍播放：第一遍直接起播，每遍结尾 `fadeSec`（默认 2.5s）渐出，
   比赛未结束则再起一遍并从第二遍起开头渐入；`stop(fade)` 淡出，`duck(level)` 压低（出局 0.45、结算 0.35）。
 - **音效**（`sfx.ts`）：`setSfxPack(pack)` 后 `playSfx(id)` 按风格包事件表选预设或文件，未配置则用默认预设；`playPreset(id)` 直接播放预设（如连点达到 1.4 倍时的象鸣 `trumpetTrunk`）。
-  预设库除鞭响 / 鼓 / 号角 / 滑哨 / 象鸣 / 滴答 / 起跑 / 点击外，还有汽车主题的 `hornHonk`（双音喇叭）、`engineRev`（地板油起步 + 打滑）、`tireScreech`（轮胎尖啸）、`crash`（追尾闷响 + 金属碎响）。
+  预设库除鞭响 / 鼓 / 号角 / 滑哨 / 象鸣 / 滴答 / 起跑 / 点击外，还有汽车主题的 `hornHonk`（双音喇叭）、`engineRev`（地板油起步 + 打滑）、`tireScreech`（轮胎尖啸）、`crash`（追尾闷响 + 金属碎响），以及奶娃主题的 `squeak`（玩具捏响）、`giggle`（五段奶声咯咯笑）、`boing`（弹簧嘣）。
   `hornHonk` 是**可持续**预设：模块级只保留一只喇叭，单按按住 0.16s 后 80ms 收尾；若上一声收尾后 0.12s 内再按（连点间隔过近），不重触发而是取消收尾、按住并顺延，于是连点越密鸣笛越长，停手才收尾。
   猛抽时的象鸣现在是风格包事件 `trumpet`（`RaceScreen` 用 `playSfx("trumpet", TRUMPET_GAIN)` 节流 1.6s 触发，`TRUMPET_GAIN = 1.6` 是组件层统一的音量倍率，风格包 `sfx.trumpet.gain` 在其上再乘），默认预设 `trumpetTrunk`，宝莱坞替换为公版录音文件；`preloadStyle` 会连同音效文件一起预载（`preloadSfxFiles`）。
 - **阶段联动**：`App.tsx` 在 `/play` 的非赛跑阶段播放 `menu`（具象化阶段优先 `birth`），离开 `/play` 停止；`RaceScreen` 在倒数「3」出现时播放 `race`，倒数 / 起跑 / 挥鞭 / 出局 / 结算各触发对应音效。
@@ -94,16 +95,17 @@ lobby ──房主 startGame()──► draw ──三部位画完 prepareBirth(
   **象鼻**（有识别曲线则按曲线分节建圆柱链，否则程序化下垂回卷；随步伐轻摆，连点越猛扬得越高，甩飞时高高扬起）、
   **扇耳**（识别到耳尖则由耳根指向耳尖的薄椭圆，否则默认一对；随步伐扇动）；脖子由识别脖子根→头端驱动；
   尾巴优先按识别曲线生成 CatmullRom 细管尾（尾尖带穗），无曲线时退回默认尾柱；
-  **大象附件库**按 `pack.elephantAccessories` 挂载车件：`headlights`（头球前方半嵌的大灯 + 侧面转向灯）、`taillights`（躯干后半球尾灯）、`mirrors`（头两侧短杆圆后视镜）、`plate`（屁股正后方车牌，-x 面贴 `label` 文字材质）、`hubcaps`（每只象足套黑胎环 + 外侧轮毂盖）、`bumper`（吻下镀铬保险杠）；
+  **大象附件库**按 `pack.elephantAccessories` 挂载：车件 `headlights`（头球前方半嵌的大灯 + 侧面转向灯）、`taillights`（躯干后半球尾灯）、`mirrors`（头两侧短杆圆后视镜）、`plate`（屁股正后方车牌，-x 面贴 `label` 文字材质）、`hubcaps`（每只象足套黑胎环 + 外侧轮毂盖）、`bumper`（吻下镀铬保险杠），以及奶娃件 `bigEyes`（头正前上方一对白眼球 + 沿视线凸出的绿虹膜 / 黑瞳 / 高光，盖住默认小眼）、`belly`（躯干前下方的奶白大椭圆斑 + 下巴奶白斑）；
   象背固定象毯（带垂幔），驭象师骑在象毯上，头球为 24×16 段以承载脸贴图，默认后脑头发只覆盖 x≤0 的后半球；头盔只盖到眉上、帽檐与头巾缠绕层抬到眉毛以上、小胡子落在鼻嘴之间，都给脸贴图让位；
   **每个驭象师都有脸**：`pack.rider.face` 缺省时按 `skin` 颜色生成默认三档脸（深肤色用浅线），长相 `variant: "$player"` 按玩家序号轮选；
-  **驭象师附件库**按 `pack.rider.accessories` 挂载（头巾含宝石、头盔、面罩、帽、羽饰、小胡子、胡须、眉心点、绶带、蓬松卷发、座椅靠背与头枕、方向盘）；
+  **驭象师附件库**按 `pack.rider.accessories` + `accessoriesByPlayer[playerIndex % length]` 挂载（头巾含宝石、头盔、面罩、帽、羽饰、小胡子、胡须、眉心点、绶带、蓬松卷发、座椅靠背与头枕、方向盘；吉祥物件：灰褐犄角、水平牛耳（粉内耳）、粉色大吻部（鼻孔 + 一字嘴）、高立耳、大棕鼻（带高光）、胸前奶白肚皮），`{ kind, materials }` 形式可逐槽覆盖附件内部材质；
   **表情档位**：`setPose` 按连点强度（>0.2 / >0.7）或甩飞状态在 `calm / tense / furious` 三档头球材质间切换；
   **狰狞形变**：挥鞭强度 `k` 越大，头球以 28Hz 级抖动（三轴旋转幅度 ∝ k）、横向拉伸 / 纵向挤压（±16% / ±12%）并侧倾，呈现越抽越用力的扭曲；
   `setPose(pose, whipIntensity, dt, buckedOff, riderFlyY, riderFlyRot, riderFlyX)` 每帧写入步态正解、挥鞭抽打动作与过载坠象的人象分离、四肢乱蹬大风车抛飞姿态。
   `dispose()` 只释放几何，材质由解析器释放。
 - `environment.buildEnvironment(scene, pack, resolver, trackLenWorld, track)`：天空（纯色或 2×256 渐变 Canvas 纹理）、雾、半球光 + 平行光、地面、跑道、
-  InstancedMesh 栅栏、终点门与双色格横幅、礼花筒基座、云朵，再按 `props[]` 调 `props.buildProps()`；装饰物按 `seed` 确定性分布，`torana` / `bunting` 横跨赛道居中，其余按侧放置，神庙门洞与高速路灯灯臂朝向跑道，方块车 / 厢货车头朝 +x（与赛跑方向一致），限速牌两面都贴标牌纹理。
+  InstancedMesh 栅栏、终点门与双色格横幅、礼花筒基座、云朵，再按 `props[]` 调 `props.buildProps()`；装饰物按 `seed` 确定性分布，`torana` / `bunting` 横跨赛道居中，其余按侧放置，神庙门洞与高速路灯灯臂朝向跑道，方块车 / 厢货车头朝 +x（与赛跑方向一致），限速牌两面都贴标牌纹理；
+  以 +x 为正脸建模的 `milkBaby`（奶娃：蛋形身体、奶白肚皮、灰爪、大绿眼，`variant` 决定抿嘴 / 捧腹大笑 / 流蓝泪忧郁）、`fuzzyBull`（牛来）、`chubbyRoo`（肥嘟嘟袋鼠）、`billboard`（弹幕横牌）在铺设时按所在侧旋转 ∓90° 转向跑道。
 - `raceScene.RaceScene(canvas, entries, myIndex, pack)`：相机跟随自身大象（第三人称）、第一人称自由转头环视，坠象时自动切入的**第二人称大象回望特写相机**（同时框住回眸的大象与升天的驭象师），以及出局后跟随领跑者（`leaderOf`）的观战相机。
   **面部直播画中画**：主画面渲染完后，用第二台 `faceCam`（fov 30→24）以 `setScissor` / `setViewport` 在同一画布右下角再渲染一次；相机架在驭象师头球正前方 `headR × (9.5 − 3.6k)` 处，随挥鞭强度 `k` 贴近、抖动（∝ k²）、机身滚转，正常时朝向取大象整体姿态（头部抖动因此可见），甩飞时改取头部朝向（镜头随人翻滚）；出局观战后不再渲染。
   `faceCam` 只看渲染层 `FACE_LAYER`（1）：仅自己的驭象师子树（`rig.riderRoot`）与场景灯光启用该层，因此象头、路灯、对手都不会挡脸；灯光启用必须在 `buildEnvironment` 之后，否则驭象师不受光成剪影。
@@ -125,7 +127,7 @@ React 集成注意事项：三处 three 画布（大厅预览、具象化、赛�
 ## 验证入口
 
 - `?demo=draw` / `?demo=birth` / `?demo=race`，可加 `&style=<id>`（仅 `import.meta.env.DEV`）：用 `synth.ts` 合成画作直接渲染，
-  供 `scripts/screenshot.mjs` 按风格截图目视验证，不需要多人流程。
+  供 `scripts/screenshot.mjs` 按风格截图目视验证，不需要多人流程；`?demo=race` 可再加 `&me=<0~3>`（`loadDemoRace(entries, me)` 把该头象设为自己）核对按玩家序号轮选的脸与附件。
 - `scripts/e2e-p2p.mjs`：起 `wrangler dev` + `vite`，三个浏览器上下文访问 `/play` 真实绘制三部位，
   断言 DataChannel 全部直连、三端名次一致、中途加入者候场。
-- `tests/`：`recognize`（含象鼻分离三例）、`metrics`、`gait`、`raceSim`、`style`（注册表 / 校验器 / `$player` / 缓存键）、`sequencer`（度数转频率 / 全部内置乐谱可编译 / 休止延音）、`facePip`（脸变体轮选 / 序号缓存键判定 / 画中画布局边界）。
+- `tests/`：`recognize`（含象鼻分离三例）、`metrics`、`gait`、`raceSim`、`style`（注册表 / 校验器含对象形式驭象师附件与 `accessoriesByPlayer` / 三套风格包契约断言 / `$player` / 缓存键）、`sequencer`（度数转频率 / 全部内置乐谱可编译 / 休止延音）、`facePip`（脸变体与物种轮选 / 序号缓存键判定 / 画中画布局边界）。
