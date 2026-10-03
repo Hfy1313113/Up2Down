@@ -33,7 +33,7 @@ export function About() {
           <li>前端：React 19 + TypeScript + Vite + Tailwind CSS；Three.js 驱动 3D 大象、赛道与相机。</li>
           <li>联机：WebRTC DataChannel 网状直连传画作与赛况；Cloudflare Worker + Durable Objects 提供房间信令与兜底中转。</li>
           <li>风格系统：大象/驭象师材质、赛道装饰、展台、界面配色、音乐与音效由「风格包」声明，机制与内容解耦。</li>
-          <li>音频：全部背景音乐与音效由 WebAudio 程序化合成，不依赖第三方录音。</li>
+          <li>音频：音效与回落曲目由 WebAudio 程序化合成；风格包可附带正规渠道获得的音频文件，播完一遍自动渐出、再起渐入循环。</li>
         </ul>
 
         <h2>文化致敬</h2>

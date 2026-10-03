@@ -66,7 +66,8 @@ lobby ──房主 startGame()──► draw ──三部位画完 prepareBirth(
 - **程序化音乐**（`sequencer.ts`）：`compileTrack(track)` 纯函数把乐谱展开为按拍排序的 `NoteEvent[]`（鼓 / 旋律 / 低音；连续休止延长前一音时值；`swing` 偏移弱拍）；
   `Sequencer` 每 100ms 把未来 350ms 的事件排进 WebAudio 时间线并循环；乐器 `pluck`（西塔琴感）、`lead`（舍纳伊式方波颤音）、`square`、`bell`、`bass`、`drone`，鼓机 `K/S/h/H/T/t`，可选持续 drone。
 - **播放器**（`music.ts`）：`music.play(track, key)` 同 key 不重启；`file` 先 `fetch` + `decodeAudioData`（`content-type` 为 HTML 的 SPA 回落页视为缺失），失败则 `procedural`；
-  0.8s 淡入，`stop(fade)` 淡出，`duck(level)` 压低（出局 0.45、结算 0.35）。
+  程序化曲目 0.8s 淡入并无缝循环；文件曲目不用 `loop`，而是逐遍播放：第一遍直接起播，每遍结尾 `fadeSec`（默认 2.5s）渐出，
+  比赛未结束则再起一遍并从第二遍起开头渐入；`stop(fade)` 淡出，`duck(level)` 压低（出局 0.45、结算 0.35）。
 - **音效**（`sfx.ts`）：`setSfxPack(pack)` 后 `playSfx(id)` 按风格包事件表选预设或文件，未配置则用默认预设；`playPreset(id)` 直接播放预设（如连点达到 1.4 倍时的象鸣 `trumpetTrunk`）。
 - **阶段联动**：`App.tsx` 在 `/play` 的非赛跑阶段播放 `menu`（具象化阶段优先 `birth`），离开 `/play` 停止；`RaceScreen` 在倒数「3」出现时播放 `race`，倒数 / 起跑 / 挥鞭 / 出局 / 结算各触发对应音效。
 

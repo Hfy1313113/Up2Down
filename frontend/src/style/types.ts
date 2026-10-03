@@ -137,6 +137,11 @@ export interface TrackSpec {
   file?: string;
   procedural?: ProceduralTrack;
   volume?: number;
+  /**
+   * 文件曲目的循环淡变时长（秒，默认 2.5）：每遍播放结尾渐出；从第二遍起开头渐入。
+   * 第一遍开头不渐入。程序化乐谱是无缝循环，不受此项影响。
+   */
+  fadeSec?: number;
 }
 export interface MusicSpec {
   race: TrackSpec;

@@ -32,7 +32,7 @@
 - `src/game/`：纯算法，无 DOM 依赖——分部位识别（`recognize.ts`，含象鼻曲线分离）、速度公式（`metrics.ts`）、
   步态相位（`gait.ts`）、赛跑物理积分与碰撞动力学（`raceSim.ts`，含连点加速脉冲衰减、极限加速过载监测、连续超上限 3 秒甩下象背出局机制、冲撞/拌腿/美式截停/创飞交互，**不含随机数**）。可被单测直接驱动。
 - `src/style/`：**风格包层**。`types.ts` 定义契约（材质槽位、附件、装饰物、环境、展台、UI 配色、音乐、音效），`validate.ts` 结构校验，`registry.ts` 用 `import.meta.glob` 自动发现 `packs/*/index.ts`，`materials.ts` 把材质描述解析成 three 材质（程序化纹理画到 Canvas、图片纹理走 loader、按描述缓存统一释放），`theme.ts` 写入 CSS 变量并记录本机偏好，`preload.ts` 预载图片与音乐文件。
-- `src/audio/`：**音频层**。`context.ts` 全局唯一 `AudioContext` + BGM / SFX 两条总线，`settings.ts` 本机偏好，`sequencer.ts` 把程序化乐谱编译成事件并前瞻调度，`music.ts` 背景音乐播放器（文件优先、回落程序化、淡入淡出、压低），`sfx.ts` 音效预设库（风格包按事件选预设或文件）。
+- `src/audio/`：**音频层**。`context.ts` 全局唯一 `AudioContext` + BGM / SFX 两条总线，`settings.ts` 本机偏好，`sequencer.ts` 把程序化乐谱编译成事件并前瞻调度，`music.ts` 背景音乐播放器（文件优先、回落程序化、文件曲目逐遍播放并在结尾渐出/第二遍起渐入、压低），`sfx.ts` 音效预设库（风格包按事件选预设或文件）。
 - `src/three/`：three.js 场景层。`elephantMesh.ts` 由识别模型生成 3D 大象及驭象师模型（双关节连杆按步态驱动，象鼻 / 象牙 / 扇耳 / 象毯，驭象师附件库按风格包清单挂载，连点挥鞭动力学与甩下象背的人象分离、四肢大风车失控抛飞姿态）；
   `environment.ts` 按风格包声明构建天空 / 雾 / 灯光 / 地面 / 跑道 / 栅栏 / 终点门 / 礼花筒 / 云朵，`props.ts` 装饰物库（棕榈、圆树、灌木、岩石、神庙、托拉纳门、彩旗、灯笼、路灯、旗帜、远山）；
   `raceScene.ts` 渲染赛道、俯瞰视角聚焦自身相机、第一人称自由转头环视、第二人称大象回眸目送驭象师特写、物理位移与冲线礼花筒粒子系统；`birthScene.ts` 渲染具象化展台（含大厅预览模式）。

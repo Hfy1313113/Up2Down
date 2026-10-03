@@ -29,7 +29,7 @@ src/
 │   ├── context.ts     全局唯一 AudioContext + BGM / SFX 两条 GainNode 总线；unlockAudio()
 │   ├── settings.ts    静音 / 音乐音量 / 音效音量（localStorage）
 │   ├── sequencer.ts   程序化乐谱编译（compileTrack，纯函数）+ 前瞻调度 Sequencer + 乐器音色与鼓机
-│   ├── music.ts       背景音乐播放器：文件优先、回落程序化、淡入淡出、duck()
+│   ├── music.ts       背景音乐播放器：文件优先、回落程序化、文件曲目逐遍播放（结尾渐出、第二遍起渐入）、duck()
 │   └── sfx.ts         音效预设库 + 按风格包事件表播放（playSfx / playPreset）
 ├── three/
 │   ├── elephantMesh.ts 识别模型 → THREE.Group（躯干、颈头、象鼻分节、象牙、扇耳、四条连杆腿、尾巴、象毯、驭象师与附件库、挥鞭骨骼、抛飞姿态）
@@ -79,7 +79,7 @@ src/
    - `props[].kind`（`PROP_KINDS`）：`palm, roundTree, bush, rock, temple, torana, bunting, lantern, lamppost, flag, mountain`；每种装饰物内部的材质槽位名见 `three/props.ts`（如 `temple` 的 `wall / dome / trim`），可用 `materials` 逐槽覆盖
    - `birth`：`disc`、`ring`、`backdrop`（CSS background）、`lights`
    - `ui`：`accent, accentHover, ink, paper, bg, bgPattern, go, goHover, canvasPaper, canvasGrid`
-   - `music`：`race` 必填，`menu` / `birth` 可选；每条 `{ file?, procedural?, volume? }`，至少有一个来源
+   - `music`：`race` 必填，`menu` / `birth` 可选；每条 `{ file?, procedural?, volume?, fadeSec? }`，至少有一个来源；`fadeSec` 为文件曲目每遍结尾渐出与第二遍起渐入的秒数（默认 2.5）
    - `sfx`（`SFX_IDS`）：`whip, impact, fanfare, blast, buckedOff, countdown, go, uiTap`，每项 `{ synth?: 预设名, file?, gain? }`；预设（`SYNTH_PRESETS`）：`whipCrack, dholHit, tablaTak, thud, brassFanfare, shehnaiFanfare, boom, slideWhistle, trumpetTrunk, tick, goBlast, click`
 3. 材质描述 `MaterialSpec`：`color`（可写 `"$player"` 取玩家身份色）、`texture`（`{kind:"image", url}` 或 `{kind:"procedural", recipe}`）、`repeat`、`roughness`、`metalness`、`emissive`、`unlit`、`opacity`。
    程序化配方 `recipe.type`：`solid, stripes, spots, noise, wrinkle, checker, paisley, mandala, grid, fringe`。
