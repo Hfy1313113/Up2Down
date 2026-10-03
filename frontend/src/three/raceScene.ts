@@ -5,7 +5,7 @@ import * as THREE from "three";
 import { computePose } from "../game/gait";
 import { TRACK_LEN } from "../game/raceSim";
 import type { RaceState } from "../game/raceSim";
-import { buildHorse, WORLD_SCALE, type HorseRig } from "./horseMesh";
+import { buildHorse, RIDER_FLY_HEIGHT, WORLD_SCALE, type HorseRig } from "./horseMesh";
 
 export type ViewMode = "third" | "first";
 
@@ -321,6 +321,13 @@ export class RaceScene {
 
   private track<T extends { dispose(): void }>(x: T): T { this.disposables.push(x); return x; }
 
+  /** 当前领跑者：未出局且未冲线者中 x 最大；都冲线/出局则取 x 最大者 */
+  private leaderOf(st: RaceState) {
+    const running = st.runners.filter(r => !r.failed && !r.finished);
+    const pool = running.length ? running : st.runners;
+    return pool.reduce((a, b) => (b.x > a.x ? b : a), pool[0]);
+  }
+
   resize(): void {
     const canvas = this.renderer.domElement;
     const w = canvas.clientWidth || window.innerWidth;
@@ -373,28 +380,35 @@ export class RaceScene {
     const myObj = this.horses[this.myIndex] ?? this.horses[0];
     const pose = computePose(me.model, me.phase);
 
-    if (me.buckedOff) {
-      // 第二人称动画视角：战马主视角回头特写，冷漠回望看着被颠飞的小人疯狂螺旋升天
+    // 出局且抛飞动画已播完 → 观战：第三人称跟随当前领跑者，直到全场完赛
+    const spectating = me.buckedOff && me.interactionTimer <= 0;
+    const leader = spectating ? this.leaderOf(st) : me;
+
+    if (me.buckedOff && !spectating) {
+      // 第二人称特写：相机架在马前侧方，同时框住回眸的战马与螺旋升天的骑手
       const horseHead = myObj.rig.headLocal.clone().multiplyScalar(S);
       const hx = me.x * S + horseHead.x;
-      const hy = (pose.bob + me.y) * S + horseHead.y + 0.8;
+      const hy = (pose.bob + me.y) * S + horseHead.y;
       const hz = me.z;
 
-      // 相机架设在马头前侧偏上方，镜头直接对准抛飞升天的小人
-      const camX = hx + 1.8 + Math.sin(me.riderFlyRot * 3) * 0.2;
-      const camY = hy + 1.2;
-      const camZ = hz + 1.8;
+      const riderH = me.riderFlyY * RIDER_FLY_HEIGHT * S;        // 0 ~ 约 6.3
+      const riderX = me.x * S - me.riderFlyX * S;
+      const riderY = hy + riderH;
+      const riderZ = hz + Math.sin(me.riderFlyRot * 4) * 6 * S;
 
-      // 目标：正在抛物线升天狂乱翻滚的受难小人
-      const riderTargetX = me.x * S - me.riderFlyX * S;
-      const riderTargetY = hy + me.riderFlyY * 22 * S;
-      const riderTargetZ = hz + Math.sin(me.riderFlyRot * 4) * 6 * S;
+      // 骑手越高相机越退，保证马身（约 0~2 高）与骑手同时在 60° 视锥内
+      const dist = 5.5 + riderH * 0.55;
+      const camX = hx + dist * 0.55 + Math.sin(me.riderFlyRot * 3) * 0.15;
+      const camY = hy + 1.0 + riderH * 0.45;
+      const camZ = hz + dist * 0.8;
 
+      // 注视点：马身中心与骑手的中点
+      const bodyX = me.x * S, bodyY = (pose.bob + me.y) * S + 1.0;
       this.camera.position.set(camX, camY, camZ);
-      this.camera.lookAt(riderTargetX, riderTargetY, riderTargetZ);
+      this.camera.lookAt((bodyX + riderX) / 2, (bodyY + riderY) / 2, (hz + riderZ) / 2);
       // 镜头微倾斜带出滑稽特写戏剧感
-      this.camera.up.set(Math.sin(me.riderFlyRot * 2) * 0.15, 1, 0);
-    } else if (view === "first") {
+      this.camera.up.set(Math.sin(me.riderFlyRot * 2) * 0.12, 1, 0);
+    } else if (view === "first" && !spectating) {
       this.camera.up.set(0, 1, 0);
       const head = myObj.rig.headLocal.clone().multiplyScalar(S);
       const z = me.z;
@@ -418,9 +432,9 @@ export class RaceScene {
       this.camera.lookAt(eyeX + forwardX, eyeY + forwardY, z + forwardZ);
     } else {
       this.camera.up.set(0, 1, 0);
-      // 第三人称上帝视角：精确跟随用户自己的马儿
-      const myTargetX = Math.min(me.x, TRACK_LEN) * S;
-      const myTargetZ = me.z;
+      // 第三人称上帝视角：跟随自己的马；观战时跟随领跑者
+      const myTargetX = Math.min(leader.x, TRACK_LEN) * S;
+      const myTargetZ = leader.z;
 
       this.cameraX += (myTargetX - this.cameraX) * Math.min(1, dt * 5 + 0.1);
       this.cameraZ += (myTargetZ - this.cameraZ) * Math.min(1, dt * 4 + 0.08);

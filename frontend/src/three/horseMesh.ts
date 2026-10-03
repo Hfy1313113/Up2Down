@@ -7,6 +7,9 @@ import type { HorseModel, LegModel, Pose } from "../game/types";
 
 // 模型本地坐标（躯干 120 单位）→ 世界尺度
 export const WORLD_SCALE = 0.02;
+// 骑手颠飞高度：raceSim.riderFlyY（0~35）× 该系数 = 模型本地单位；
+// 取 9 使最高约 6 个世界单位，第二人称相机能把马与骑手同时框进画面
+export const RIDER_FLY_HEIGHT = 9;
 
 export interface HorseRig {
   group: THREE.Group;
@@ -204,12 +207,12 @@ export function buildHorse(model: HorseModel, color: string): HorseRig {
   riderGroup.position.set(T.cx, T.cy + radius * 0.85, 0);
   group.add(riderGroup);
 
-  // 1. 马鞍垫
+  // 1. 马鞍垫：固定在马背上（挂在 group 而非 riderGroup），骑手被颠飞时鞍子留在马身上
   const saddleGeo = track(new THREE.BoxGeometry(T.len * 0.36, 3, radius * 1.7));
   const saddleMat = track(new THREE.MeshStandardMaterial({ color: "#221c18", roughness: 0.9 }));
   const saddle = new THREE.Mesh(saddleGeo, saddleMat);
-  saddle.position.set(0, 1.5, 0);
-  riderGroup.add(saddle);
+  saddle.position.set(T.cx, T.cy + radius * 0.85 + 1.5, 0);
+  group.add(saddle);
 
   // 2. 骑手上身 / 骑手服
   const jacketGeo = track(new THREE.CylinderGeometry(radius * 0.38, radius * 0.34, radius * 1.2, 8));
@@ -334,9 +337,10 @@ export function buildHorse(model: HorseModel, color: string): HorseRig {
 
     if (buckedOff) {
       // 抽象大风车狂甩肢体与高空弹射旋转
+      // 抛飞高度系数与 raceScene 的第二人称相机取景一致（RIDER_FLY_HEIGHT）
       riderGroup.position.set(
         T.cx - radius * 0.1 - riderFlyX,
-        T.cy + radius * 0.85 + riderFlyY * 20,
+        T.cy + radius * 0.85 + riderFlyY * RIDER_FLY_HEIGHT,
         Math.sin(riderFlyRot * 4) * 6
       );
       // 三维多轴失控狂转
