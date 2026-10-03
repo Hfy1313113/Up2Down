@@ -1,11 +1,14 @@
-// raceScene.ts —— three.js 真实 3D 赛跑场景：地面/终点门/天空/灯光，
-// 马匹由 elephantMesh 生成、按 raceSim 状态驱动（raceSim 仍是唯一确定性来源，本层只消费）。
+// raceScene.ts —— three.js 真实 3D 赛跑场景：环境由风格包声明经 environment.ts 构建，
+// 大象由 elephantMesh 生成、按 raceSim 状态驱动（raceSim 仍是唯一确定性来源，本层只消费）。
 // 支持第三人称追踪自身、第一人称自由转头环视、物理碰撞渲染与头名冲线礼花筒动画。
 import * as THREE from "three";
 import { computePose } from "../game/gait";
 import { TRACK_LEN } from "../game/raceSim";
 import type { RaceState } from "../game/raceSim";
+import { MaterialResolver } from "../style/materials";
+import type { StylePack } from "../style/types";
 import { buildElephant, RIDER_FLY_HEIGHT, WORLD_SCALE, type ElephantRig } from "./elephantMesh";
+import { buildEnvironment } from "./environment";
 
 export type ViewMode = "third" | "first";
 
@@ -50,120 +53,31 @@ export class RaceScene {
   private confettiPieces: ConfettiPiece[] = [];
   private confettiFired = false;
 
-  constructor(canvas: HTMLCanvasElement, entries: { name: string; color: string; model: import("../game/types").ElephantModel }[], myIndex: number) {
+  private pack: StylePack;
+  private materials: MaterialResolver;
+
+  constructor(canvas: HTMLCanvasElement, entries: { name: string; model: import("../game/types").ElephantModel }[], myIndex: number, pack: StylePack) {
     this.myIndex = myIndex;
+    this.pack = pack;
+    this.materials = new MaterialResolver(pack.playerColors);
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
     this.renderer.setPixelRatio(window.devicePixelRatio);
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color("#6ec1f5");
-    this.scene.fog = new THREE.Fog("#bfe6ff", 60, 240);
     this.camera = new THREE.PerspectiveCamera(60, 1, 0.1, 800);
     this.track(this.camera);
 
-    // 灯光
-    const hemi = new THREE.HemisphereLight("#dff3ff", "#5da84a", 1.1);
-    const sun = new THREE.DirectionalLight("#fff4d6", 1.4);
-    sun.position.set(40, 80, 30);
-    this.scene.add(hemi, sun);
-
     const S = WORLD_SCALE;
-    // 地面
-    const groundGeo = this.track(new THREE.PlaneGeometry(TRACK_LEN * S + 400, 400));
-    const groundMat = this.track(new THREE.MeshStandardMaterial({ color: "#6fbf58", roughness: 1 }));
-    const ground = new THREE.Mesh(groundGeo, groundMat);
-    ground.rotation.x = -Math.PI / 2;
-    ground.position.set(TRACK_LEN * S / 2, 0, 0);
-    this.scene.add(ground);
-
-    // 跑道（稍深的色带）
-    const laneGeo = this.track(new THREE.PlaneGeometry(TRACK_LEN * S + 40, 18));
-    const laneMat = this.track(new THREE.MeshStandardMaterial({ color: "#8fce6e", roughness: 1 }));
-    const lane = new THREE.Mesh(laneGeo, laneMat);
-    lane.rotation.x = -Math.PI / 2;
-    lane.position.set(TRACK_LEN * S / 2, 0.01, 0);
-    this.scene.add(lane);
-
-    // 栅栏（沿赛道两侧重复）
-    const postGeo = this.track(new THREE.BoxGeometry(0.18, 0.9, 0.18));
-    const postMat = this.track(new THREE.MeshStandardMaterial({ color: "#a5713f" }));
-    const railGeo = this.track(new THREE.BoxGeometry(4, 0.1, 0.08));
-    const railMat = postMat;
-    const spacing = 4;
-    const count = Math.ceil((TRACK_LEN * S + 20) / spacing);
-    const posts = new THREE.InstancedMesh(postGeo, postMat, count * 2);
-    const rails = new THREE.InstancedMesh(railGeo, railMat, count * 2);
-    const m4 = new THREE.Matrix4();
-    for (let i = 0; i < count; i++) {
-      const x = i * spacing - 10;
-      m4.makeTranslation(x, 0.45, -9);
-      posts.setMatrixAt(i * 2, m4);
-      m4.makeTranslation(x, 0.45, 9);
-      posts.setMatrixAt(i * 2 + 1, m4);
-      m4.makeTranslation(x + spacing / 2, 0.7, -9);
-      rails.setMatrixAt(i * 2, m4);
-      m4.makeTranslation(x + spacing / 2, 0.7, 9);
-      rails.setMatrixAt(i * 2 + 1, m4);
-    }
-    this.scene.add(posts, rails);
-
-    // 终点门（在 x = TRACK_LEN*S）
-    const gateX = TRACK_LEN * S;
-    const poleGeo = this.track(new THREE.CylinderGeometry(0.25, 0.25, 6, 10));
-    const poleMat = this.track(new THREE.MeshStandardMaterial({ color: "#e2703a" }));
-    for (const z of [-9, 9]) {
-      const pole = new THREE.Mesh(poleGeo, poleMat);
-      pole.position.set(gateX, 3, z);
-      this.scene.add(pole);
-    }
-    // 黑白格横幅
-    const bannerCanvas = document.createElement("canvas");
-    bannerCanvas.width = 128; bannerCanvas.height = 16;
-    const bctx = bannerCanvas.getContext("2d")!;
-    for (let i = 0; i < 16; i++) {
-      bctx.fillStyle = i % 2 ? "#111" : "#fff";
-      bctx.fillRect(i * 8, 0, 8, 16);
-    }
-    const bannerTex = this.track(new THREE.CanvasTexture(bannerCanvas));
-    const bannerGeo = this.track(new THREE.PlaneGeometry(16, 1.6));
-    const bannerMat = this.track(new THREE.MeshBasicMaterial({ map: bannerTex, side: THREE.DoubleSide }));
-    const banner = new THREE.Mesh(bannerGeo, bannerMat);
-    banner.position.set(gateX, 5.4, 0);
-    banner.rotation.y = Math.PI / 2;
-    this.scene.add(banner);
-
-    // 礼花筒发射器基座模型
-    const cannonGeo = this.track(new THREE.CylinderGeometry(0.4, 0.5, 1.6, 8));
-    const cannonMat = this.track(new THREE.MeshStandardMaterial({ color: "#f59e0b", metalness: 0.6, roughness: 0.3 }));
-    for (const z of [-8.5, 8.5]) {
-      const cannon = new THREE.Mesh(cannonGeo, cannonMat);
-      cannon.position.set(gateX - 0.5, 0.8, z);
-      cannon.rotation.z = (z < 0 ? -1 : 1) * 0.35;
-      this.scene.add(cannon);
-    }
+    // 天空/雾/灯光/地面/跑道/栅栏/终点门/礼花筒/云朵/装饰物：全部来自风格包声明
+    buildEnvironment(this.scene, pack, this.materials, TRACK_LEN * S, x => this.track(x));
 
     // 礼花粒子容器
     this.confettiGroup = new THREE.Group();
     this.scene.add(this.confettiGroup);
     this.initConfettiSystem();
 
-    // 云朵（简单球簇）
-    const cloudGeo = this.track(new THREE.SphereGeometry(1.6, 10, 8));
-    const cloudMat = this.track(new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 1 }));
-    for (let i = 0; i < 14; i++) {
-      const cl = new THREE.Group();
-      for (let j = 0; j < 3; j++) {
-        const puff = new THREE.Mesh(cloudGeo, cloudMat);
-        puff.position.set(j * 1.4 - 1.4, j === 1 ? 0.4 : 0, 0);
-        puff.scale.setScalar(1 - Math.abs(j - 1) * 0.3);
-        cl.add(puff);
-      }
-      cl.position.set((i * 37) % (TRACK_LEN * S), 14 + (i * 13) % 10, -20 - (i * 17) % 40);
-      this.scene.add(cl);
-    }
-
-    // 马匹与碰撞浮动文案 Sprite
-    entries.forEach((e) => {
-      const rig = buildElephant(e.model, e.color);
+    // 大象与碰撞浮动文案 Sprite
+    entries.forEach((e, i) => {
+      const rig = buildElephant(e.model, { materials: this.materials, pack, playerIndex: i });
       rig.group.scale.setScalar(S);
       this.scene.add(rig.group);
 
@@ -186,7 +100,7 @@ export class RaceScene {
   }
 
   private initConfettiSystem() {
-    const confettiColors = ["#ef4444", "#f59e0b", "#10b981", "#3b82f6", "#ec4899", "#8b5cf6", "#fbbf24"];
+    const confettiColors = this.pack.environment.confettiColors;
     const confettiGeo = this.track(new THREE.PlaneGeometry(0.22, 0.42));
 
     for (let i = 0; i < 220; i++) {
@@ -307,7 +221,7 @@ export class RaceScene {
       ctx.roundRect(10, 10, 236, 60, 14);
       ctx.fill();
       ctx.lineWidth = 3;
-      ctx.strokeStyle = "#f59e0b";
+      ctx.strokeStyle = this.pack.ui.accent;
       ctx.stroke();
 
       ctx.fillStyle = "#ffffff";
@@ -341,14 +255,14 @@ export class RaceScene {
     const S = WORLD_SCALE;
     const gateX = TRACK_LEN * S;
 
-    // 检查是否有马冲线，触发礼花筒动画
+    // 检查是否有大象冲线，触发礼花筒动画
     const winnerFinished = st.runners.some(r => r.finished || r.finishTime != null || r.x >= TRACK_LEN);
     if (winnerFinished) {
       this.triggerConfetti(gateX);
     }
     this.updateConfetti(dt, gateX);
 
-    // 渲染马匹、骑手连击马鞭动作与物理姿态
+    // 渲染大象、驭象师连击挥鞭动作与物理姿态
     st.runners.forEach((r, i) => {
       const obj = this.elephants[i];
       if (!obj) return;
@@ -385,7 +299,7 @@ export class RaceScene {
     const leader = spectating ? this.leaderOf(st) : me;
 
     if (me.buckedOff && !spectating) {
-      // 第二人称特写：相机架在马前侧方，同时框住回眸的战马与螺旋升天的骑手
+      // 第二人称特写：相机架在象前侧方，同时框住回眸的大象与螺旋升天的驭象师
       const elephantHead = myObj.rig.headLocal.clone().multiplyScalar(S);
       const hx = me.x * S + elephantHead.x;
       const hy = (pose.bob + me.y) * S + elephantHead.y;
@@ -396,13 +310,13 @@ export class RaceScene {
       const riderY = hy + riderH;
       const riderZ = hz + Math.sin(me.riderFlyRot * 4) * 6 * S;
 
-      // 骑手越高相机越退，保证马身（约 0~2 高）与骑手同时在 60° 视锥内
+      // 驭象师越高相机越退，保证象身（约 0~2 高）与驭象师同时在 60° 视锥内
       const dist = 5.5 + riderH * 0.55;
       const camX = hx + dist * 0.55 + Math.sin(me.riderFlyRot * 3) * 0.15;
       const camY = hy + 1.0 + riderH * 0.45;
       const camZ = hz + dist * 0.8;
 
-      // 注视点：马身中心与骑手之间、略偏向骑手（骑手越飞越高，保持其在画面中上部）
+      // 注视点：象身中心与驭象师之间、略偏向驭象师（飞得越高，保持其在画面中上部）
       const bodyX = me.x * S, bodyY = (pose.bob + me.y) * S + 1.0;
       this.camera.position.set(camX, camY, camZ);
       this.camera.lookAt(
@@ -436,7 +350,7 @@ export class RaceScene {
       this.camera.lookAt(eyeX + forwardX, eyeY + forwardY, z + forwardZ);
     } else {
       this.camera.up.set(0, 1, 0);
-      // 第三人称上帝视角：跟随自己的马；观战时跟随领跑者
+      // 第三人称上帝视角：跟随自己的大象；观战时跟随领跑者
       const myTargetX = Math.min(leader.x, TRACK_LEN) * S;
       const myTargetZ = leader.z;
 
@@ -445,7 +359,7 @@ export class RaceScene {
 
       if (this.camera.aspect < 1) {
         // 竖屏（手机）：横向视野窄、底部有 HUD，相机抬高并退到斜后方，
-        // 让自己的马落在画面中部偏上而不是被底部面板遮住
+        // 让自己的大象落在画面中部偏上而不是被底部面板遮住
         this.camera.position.set(this.cameraX - 11, 11, this.cameraZ + 9);
         this.camera.lookAt(this.cameraX + 4, 0.6, this.cameraZ);
       } else {
@@ -464,6 +378,7 @@ export class RaceScene {
       h.spriteCanvas.remove?.();
     });
     this.disposables.forEach(d => d.dispose());
+    this.materials.dispose();
     this.renderer.dispose();
   }
 }

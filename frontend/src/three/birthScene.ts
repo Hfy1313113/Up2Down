@@ -1,7 +1,10 @@
 // birthScene.ts —— three.js 检阅舞台：落地冲击、双足踉跄物理反馈、恢复平稳、全自由 360° 球面轨道拖拽观察与滚轮缩放。
+// 展台材质、灯光来自风格包 birth 声明；preview 模式跳过登场动画、持续奔跑并自转（大厅风格预览用）。
 import * as THREE from "three";
 import { computePose } from "../game/gait";
 import type { ElephantModel, Pose } from "../game/types";
+import { MaterialResolver } from "../style/materials";
+import type { StylePack } from "../style/types";
 import { buildElephant, WORLD_SCALE, type ElephantRig } from "./elephantMesh";
 
 const CAM_TARGET_Y = 1.5;
@@ -10,6 +13,11 @@ const CAM_RADIUS = 6.2;
 export interface BirthSceneEvents {
   onImpact?: () => void;
   onRecover?: () => void;
+}
+
+export interface BirthSceneOptions {
+  /** 预览：无登场动画，大象原地奔跑并自动旋转 */
+  preview?: boolean;
 }
 
 export class BirthScene {
@@ -32,48 +40,56 @@ export class BirthScene {
   private impactFired = false;
   private recoverFired = false;
   private disposed = false;
+  private preview: boolean;
+  private materials: MaterialResolver;
+  private runPhase = 0;
+  private lastFrame = performance.now();
 
   constructor(
     canvas: HTMLCanvasElement,
     model: ElephantModel,
-    color: string,
+    pack: StylePack,
+    playerIndex: number,
     events?: BirthSceneEvents,
+    options: BirthSceneOptions = {},
   ) {
     this.model = model;
     this.events = events;
+    this.preview = !!options.preview;
+    this.materials = new MaterialResolver(pack.playerColors);
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
     this.renderer.setPixelRatio(window.devicePixelRatio);
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
     this.track(this.camera);
 
-    const hemi = new THREE.HemisphereLight("#eaf6ff", "#8a6f55", 1.1);
-    const key = new THREE.DirectionalLight("#fff4d6", 1.8);
+    const L = pack.birth.lights;
+    const hemi = new THREE.HemisphereLight(L.hemiSky, L.hemiGround, 1.1);
+    const key = new THREE.DirectionalLight(L.keyColor, 1.8);
     key.position.set(4, 6, 5);
     this.scene.add(hemi, key);
 
-    // 圆形检阅展台
+    // 圆形检阅展台（材质来自风格包）
     const discGeo = this.track(new THREE.CylinderGeometry(2.6, 2.9, 0.4, 40));
-    const discMat = this.track(new THREE.MeshStandardMaterial({ color: "#e8d9b0", roughness: 0.9 }));
-    const disc = new THREE.Mesh(discGeo, discMat);
+    const disc = new THREE.Mesh(discGeo, this.materials.get(pack.birth.disc));
     disc.position.y = -0.2;
     this.scene.add(disc);
 
-    // 展台虚线刻度环
+    // 展台刻度环
     const ringGeo = this.track(new THREE.TorusGeometry(2.72, 0.045, 8, 60));
-    const ringMat = this.track(new THREE.MeshBasicMaterial({ color: "#e2703a" }));
+    const ringMat = this.track(new THREE.MeshBasicMaterial({ color: pack.birth.ring }));
     const ring = new THREE.Mesh(ringGeo, ringMat);
     ring.rotation.x = Math.PI / 2;
     ring.position.y = 0.02;
     this.scene.add(ring);
 
-    this.rig = buildElephant(model, color);
+    this.rig = buildElephant(model, { materials: this.materials, pack, playerIndex });
     const baseScale = WORLD_SCALE * 2.2;
     this.rig.group.scale.setScalar(baseScale);
     this.rig.setPose(computePose(model, 0.18));
     this.scene.add(this.rig.group);
 
-    // 按实际包围盒把马缩放到展台合适高度
+    // 按实际包围盒把大象缩放到展台合适高度
     const box = new THREE.Box3().setFromObject(this.rig.group);
     const size = box.getSize(new THREE.Vector3());
     const fit = 3.0 / Math.max(size.y, 1e-3);
@@ -176,11 +192,22 @@ export class BirthScene {
   private loop = (): void => {
     if (this.disposed) return;
     requestAnimationFrame(this.loop);
-    const t = performance.now() - this.startTime;
+    const now = performance.now();
+    const dt = Math.min(0.05, (now - this.lastFrame) / 1000);
+    this.lastFrame = now;
+    const t = now - this.startTime;
 
     const basePose = computePose(this.model, 0.18);
 
-    if (t < 900) {
+    if (this.preview) {
+      // 风格预览：原地奔跑 + 缓慢自转，不播登场动画
+      this.runPhase = (this.runPhase + dt * 1.6) % 1;
+      this.rig.group.position.y = 0;
+      this.rig.group.rotation.set(0, 0, 0);
+      this.rig.group.scale.setScalar(this.scale);
+      this.rig.setPose(computePose(this.model, this.runPhase), 0.35, dt);
+      if (!this.dragging) this.theta += 0.006;
+    } else if (t < 900) {
       // 阶段 1：高空降临与旋转 (0 ~ 900ms)
       const k = t / 900;
       const ease = k * k; // 重力加速感
@@ -266,6 +293,7 @@ export class BirthScene {
     this.disposed = true;
     this.rig.dispose();
     this.disposables.forEach(d => d.dispose());
+    this.materials.dispose();
     this.renderer.dispose();
   }
 }
